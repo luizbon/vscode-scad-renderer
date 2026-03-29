@@ -4,15 +4,33 @@ import * as os from 'os';
 import * as fs from 'fs';
 import { ScadRunner } from './scadRunner';
 
+export type ParameterValue = string | number | boolean;
+
 export class PreviewPanel {
     public static panels: Map<string, PreviewPanel> = new Map();
     public static readonly viewType = 'scadRenderer';
+
+    public static get currentPanel(): PreviewPanel | undefined {
+        const activeUri = vscode.window.activeTextEditor?.document.uri.toString();
+        if (activeUri) {
+            const panel = PreviewPanel.panels.get(activeUri);
+            if (panel) {
+                return panel;
+            }
+        }
+        const first = PreviewPanel.panels.values().next();
+        return first.done ? undefined : first.value;
+    }
 
     private readonly _panel: vscode.WebviewPanel;
     private readonly _extensionUri: vscode.Uri;
     public documentUri: vscode.Uri;
     public execPath?: string;
-    private parameterOverrides: Record<string, any> = {};
+    private _parameterOverrides: Record<string, ParameterValue> = {};
+
+    public get parameterOverrides(): Record<string, ParameterValue> {
+        return this._parameterOverrides;
+    }
     private _disposables: vscode.Disposable[] = [];
 
     public static createOrShow(extensionUri: vscode.Uri, execPath: string, documentUri: vscode.Uri) {
@@ -71,7 +89,7 @@ export class PreviewPanel {
         this._panel.webview.onDidReceiveMessage(message => {
             switch (message.command) {
                 case 'parameterChanged':
-                    this.parameterOverrides[message.name] = message.value;
+                    this._parameterOverrides[message.name] = message.value;
                     if (this.execPath) {
                         this.renderScad(this.execPath, this.documentUri);
                     }
@@ -114,13 +132,13 @@ export class PreviewPanel {
         try {
             fs.writeFileSync(tmpFile, code, 'utf-8');
             const runner = new ScadRunner(this.execPath);
-            const data = await runner.render(tmpFile, this.parameterOverrides);
+            const data = await runner.render(tmpFile, this._parameterOverrides);
             
             this._panel.webview.postMessage({ 
                 command: 'updateSTL', 
                 data: data.stlBuffer, 
                 parameters: data.parameters,
-                overrides: this.parameterOverrides
+                overrides: this._parameterOverrides
             });
             this.lastLogs = data.stderr || data.stdout;
             return { success: true };
@@ -140,13 +158,13 @@ export class PreviewPanel {
         
         try {
             const runner = new ScadRunner(execPath);
-            const data = await runner.render(documentUri.fsPath, this.parameterOverrides);
+            const data = await runner.render(documentUri.fsPath, this._parameterOverrides);
             
             this._panel.webview.postMessage({ 
                 command: 'updateSTL', 
                 data: data.stlBuffer, 
                 parameters: data.parameters,
-                overrides: this.parameterOverrides
+                overrides: this._parameterOverrides
             });
             this.lastLogs = data.stderr || data.stdout;
             return { success: true };

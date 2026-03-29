@@ -180,7 +180,7 @@ Open a \`.scad\` file and use one of the commands above, or right-click a \`.sca
                     const bytes = await vscode.workspace.fs.readFile(uri);
                     scadCode = new TextDecoder().decode(bytes);
                     
-                    overrides = (panel as any).parameterOverrides;
+                    overrides = panel.parameterOverrides;
                     renderError = panel.lastLogs;
 
                     const fileName = vscode.workspace.asRelativePath(uri);
