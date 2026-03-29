@@ -35,14 +35,13 @@ export async function runAgent(
     messages: vscode.LanguageModelChatMessage[],
     response: vscode.ChatResponseStream,
     token: vscode.CancellationToken,
-    toolInvocationToken?: string,
+    toolInvocationToken?: vscode.ChatParticipantToolToken,
     progressMessage?: string
 ): Promise<string> {
     if (progressMessage) {
         response.progress(progressMessage);
     }
 
-    // @ts-ignore — vscode.lm.tools is available at runtime
     const availableTools: vscode.LanguageModelChatTool[] = (vscode.lm.tools || [])
         .filter((t: any) => t.name.startsWith('scad_renderer_'));
 
@@ -76,7 +75,6 @@ export async function runAgent(
             for (const call of toolCallParts) {
                 response.progress(`🛠️ Tool: ${call.name}…`);
                 try {
-                    // @ts-ignore — toolInvocationToken type mismatch
                     const result = await vscode.lm.invokeTool(call.name, { input: call.input, toolInvocationToken }, token);
                     messages.push(vscode.LanguageModelChatMessage.Assistant([call]));
                     messages.push(vscode.LanguageModelChatMessage.User([

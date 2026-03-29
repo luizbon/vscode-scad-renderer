@@ -4,7 +4,6 @@ import { PreviewPanel } from '../PreviewPanel';
 // Define the tools in package.json as well for chat discovery
 export function registerScadTools(context: vscode.ExtensionContext) {
     // 1. Tool to trigger a render
-    // @ts-ignore
     context.subscriptions.push(vscode.lm.registerTool('scad_renderer_render', {
         async invoke(options: any, token: vscode.CancellationToken) {
             const panel = PreviewPanel.currentPanel;
@@ -31,7 +30,6 @@ export function registerScadTools(context: vscode.ExtensionContext) {
     }));
 
     // 2. Tool to capture the preview screenshot
-    // @ts-ignore
     context.subscriptions.push(vscode.lm.registerTool('scad_renderer_capture_preview', {
         async invoke(options: any, token: vscode.CancellationToken) {
             const panel = PreviewPanel.currentPanel;
@@ -63,7 +61,6 @@ export function registerScadTools(context: vscode.ExtensionContext) {
     }));
 
     // 3. Tool to update code and render
-    // @ts-ignore
     context.subscriptions.push(vscode.lm.registerTool('scad_renderer_update_code', {
         async invoke(options: vscode.LanguageModelToolInvocationOptions<any>, token: vscode.CancellationToken) {
             const input = options.input as { code: string };
@@ -92,7 +89,6 @@ export function registerScadTools(context: vscode.ExtensionContext) {
     }));
     
     // 4. Tool to open a file in the editor
-    // @ts-ignore
     context.subscriptions.push(vscode.lm.registerTool('scad_renderer_open_file', {
         async invoke(options: vscode.LanguageModelToolInvocationOptions<any>, token: vscode.CancellationToken) {
             const input = options.input as { path: string };

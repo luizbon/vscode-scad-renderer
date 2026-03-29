@@ -256,7 +256,6 @@ Open a \`.scad\` file and use one of the commands above, or right-click a \`.sca
             } else if (part instanceof vscode.LanguageModelToolCallPart) {
                 response.progress(`Calling tool: ${part.name}…`);
                 try {
-                    // @ts-ignore - version compatibility for toolInvocationToken
                     const toolResult = await vscode.lm.invokeTool(part.name, { input: part.input, toolInvocationToken: request.toolInvocationToken }, token);
                     
                     for (const resultPart of toolResult.content) {
@@ -282,8 +281,7 @@ Open a \`.scad\` file and use one of the commands above, or right-click a \`.sca
                 
                 // Use the AI File Change tool (ChatResponseFileEditPart)
                 if (typeof (vscode as any).ChatResponseFileEditPart !== 'undefined') {
-                    // @ts-ignore
-                    response.push(new (vscode as any).ChatResponseFileEditPart(contextualFileUri, edits));
+                    response.push(new (vscode as any).ChatResponseFileEditPart(contextualFileUri, edits) as vscode.ChatResponsePart);
                 } else {
                     // Fallback button if the type is missing for some reason
                     response.button({

@@ -24,7 +24,7 @@ export async function handleDebugRequest(
     context: vscode.ChatContext,
     response: vscode.ChatResponseStream,
     token: vscode.CancellationToken,
-    toolInvocationToken?: string
+    toolInvocationToken?: vscode.ChatParticipantToolToken
 ): Promise<vscode.ChatResult> {
 
     // ── 1. Resolve source file & render logs ──────────────────────────────────

@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// @ts-ignore
 const vscode = acquireVsCodeApi();
 
 // OpenSCAD uses Z as up, Three.js defaults to Y as up.

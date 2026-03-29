@@ -239,7 +239,7 @@ export async function handleCreateRequest(
     context: vscode.ChatContext,
     response: vscode.ChatResponseStream,
     token: vscode.CancellationToken,
-    toolInvocationToken?: string
+    toolInvocationToken?: vscode.ChatParticipantToolToken
 ): Promise<vscode.ChatResult> {
     const history = context.history;
     const initialDescription = getInitialDescription(history, request.prompt);
