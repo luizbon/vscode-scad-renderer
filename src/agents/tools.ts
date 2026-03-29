@@ -5,7 +5,7 @@ import { PreviewPanel } from '../PreviewPanel';
 export function registerScadTools(context: vscode.ExtensionContext) {
     // 1. Tool to trigger a render
     context.subscriptions.push(vscode.lm.registerTool('scad_renderer_render', {
-        async invoke(options: any, token: vscode.CancellationToken) {
+        async invoke(options: vscode.LanguageModelToolInvocationOptions<Record<string, never>>, token: vscode.CancellationToken) {
             const panel = PreviewPanel.currentPanel;
             if (!panel) {
                 return {
@@ -22,16 +22,16 @@ export function registerScadTools(context: vscode.ExtensionContext) {
 
             // Trigger render
             await panel.renderScad(execPath, panel.documentUri);
-            
-            return { 
-                content: [new vscode.LanguageModelTextPart('Render triggered successfully. The preview has been updated.')] 
+
+            return {
+                content: [new vscode.LanguageModelTextPart('Render triggered successfully. The preview has been updated.')]
             };
         }
     }));
 
     // 2. Tool to capture the preview screenshot
     context.subscriptions.push(vscode.lm.registerTool('scad_renderer_capture_preview', {
-        async invoke(options: any, token: vscode.CancellationToken) {
+        async invoke(options: vscode.LanguageModelToolInvocationOptions<Record<string, never>>, token: vscode.CancellationToken) {
             const panel = PreviewPanel.currentPanel;
             if (!panel) {
                 return {
@@ -41,22 +41,31 @@ export function registerScadTools(context: vscode.ExtensionContext) {
 
             const dataUrl = await panel.capturePreview();
             if (!dataUrl) {
-                return { 
-                    content: [new vscode.LanguageModelTextPart('Failed to capture preview image (panel might be hidden).')] 
+                return {
+                    content: [new vscode.LanguageModelTextPart('Failed to capture preview image (panel might be hidden).')]
                 };
             }
 
-            // Return the image part. 
+            // Return the image part.
             // Note: The dataUrl is "data:image/png;base64,..."
             const base64 = dataUrl.split(',')[1];
             const buffer = Buffer.from(base64, 'base64');
 
-            return { 
-                content: [
-                    new vscode.LanguageModelTextPart('Preview captured.'),
-                    new (vscode as any).LanguageModelImagePart(buffer, 'image/png')
-                ] 
-            };
+            if (typeof (vscode as any).LanguageModelImagePart !== 'undefined') {
+                return {
+                    content: [
+                        new vscode.LanguageModelTextPart('Preview captured.'),
+                        new (vscode as any).LanguageModelImagePart(buffer, 'image/png')
+                    ]
+                };
+            } else {
+                // LanguageModelImagePart is not available in this VS Code version — return text only
+                return {
+                    content: [
+                        new vscode.LanguageModelTextPart('Preview captured (image data available but LanguageModelImagePart is not supported in this VS Code version).')
+                    ]
+                };
+            }
         }
     }));
 

@@ -35,6 +35,9 @@ export async function runAgent(
     messages: vscode.LanguageModelChatMessage[],
     response: vscode.ChatResponseStream,
     token: vscode.CancellationToken,
+    // ChatParticipantToolToken is typed as `never` in @types/vscode — it's an opaque
+    // runtime token. This type is structurally correct but vacuously so; revisit if
+    // @types/vscode is upgraded to a real opaque type.
     toolInvocationToken?: vscode.ChatParticipantToolToken,
     progressMessage?: string
 ): Promise<string> {
