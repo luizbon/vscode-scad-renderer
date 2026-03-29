@@ -1,14 +1,19 @@
 import * as vscode from 'vscode';
 import { PreviewPanel } from './PreviewPanel';
-import { runAgent, loadSkill } from './agents/runner';
+import { runAgent } from './agents/runner';
 import {
-    parseOrchestratorDecision,
     parseReviewReport,
     parseQaReport,
     parseDiagnosticReport,
-    OrchestratorContext,
-    OrchestratorDecision,
 } from './agents/reportParsers';
+import {
+    buildOrchestratorMessages,
+    buildCoderMessages,
+    buildReviewerMessages,
+    buildQaMessages,
+    buildDebuggerMessages,
+} from './agents/messageBuilders';
+import { runOrchestratorLoop } from './agents/orchestratorLoop';
 
 /**
  * Orchestrates the /debug flow.
@@ -80,16 +85,7 @@ export async function handleDebugRequest(
 
     response.markdown('\n\n---\n## 🩺 Debugger Analysis\n\n');
 
-    const debuggerSkill = loadSkill(extensionUri, 'scad-debugger');
-    const debuggerMessages = [
-        vscode.LanguageModelChatMessage.User(debuggerSkill),
-        vscode.LanguageModelChatMessage.User(
-            `Diagnose the following OpenSCAD file.\n\n` +
-            `**Render Logs:**\n${renderLogs ?? '(no logs captured)'}\n\n` +
-            `**Source Code:**\n\`\`\`openscad\n${scadCode}\n\`\`\``
-        ),
-    ];
-
+    const debuggerMessages = buildDebuggerMessages(extensionUri, scadCode, renderLogs);
     const debuggerOutput = await runAgent(
         request.model, debuggerMessages, response, token, toolInvocationToken, '🩺 Debugger is analysing…'
     );
@@ -110,148 +106,65 @@ export async function handleDebugRequest(
         } catch { return scadCode; }
     };
 
-    const MAX_ITERATIONS = 20;
-    let iterations = 0;
     let trigger = `Debugger diagnosed the issue. Root cause: "${diagnosticReport.rootCause ?? 'unknown'}". Fix guidance: "${diagnosticReport.fixGuidance ?? 'none'}"`;
 
-    while (!token.isCancellationRequested && iterations < MAX_ITERATIONS) {
-        iterations++;
-
-        const currentCode = await readCurrentCode();
-        const ctx: OrchestratorContext = {
+    await runOrchestratorLoop({
+        model: request.model,
+        extensionUri,
+        context: {
             fileDescription,
             designBrief,
-            currentCode,
+            currentCode: await readCurrentCode(),
             agentReports,
             trigger,
-        };
-
-        response.markdown(`\n\n---\n## 🛸 Orchestrator (step ${iterations})\n\n`);
-
-        const orchestratorSkill = loadSkill(extensionUri, 'scad-orchestrator');
-        const orchestratorMessages = buildOrchestratorMessages(orchestratorSkill, ctx);
-        const orchestratorOutput = await runAgent(
-            request.model, orchestratorMessages, response, token, undefined, '🛸 Orchestrator is deciding…'
-        );
-        const decision = parseOrchestratorDecision(orchestratorOutput);
-
-        if (token.isCancellationRequested) { break; }
-
-        if (decision.action === 'DONE') {
-            response.markdown('\n\n✅ **Orchestrator declared the session complete.**\n\n');
-            break;
-        }
-        if (decision.action === 'UNKNOWN') {
-            response.markdown('\n\n⚠️ Orchestrator could not decide — halting.\n\n');
-            break;
-        }
-
-        const brief = decision.brief ?? designBrief;
-        let reportEntry = '';
-
-        switch (decision.action) {
-            case 'CALL_CODER': {
+        },
+        response,
+        token,
+        toolInvocationToken,
+        maxIterations: 20,
+        buildOrchestratorMessages: (ctx) => buildOrchestratorMessages(extensionUri, ctx),
+        onAfterHandler: async () => {
+            const currentCode = await readCurrentCode();
+            return { fileDescription, designBrief, currentCode, agentReports, trigger };
+        },
+        handlers: {
+            CALL_CODER: async (brief) => {
                 response.markdown(`\n\n---\n## 🖨️ Coder\n\n`);
                 const existingCode = await readCurrentCode();
-                const skill = loadSkill(extensionUri, 'scad-coder');
-                const msgs = [
-                    vscode.LanguageModelChatMessage.User(skill),
-                    vscode.LanguageModelChatMessage.User(
-                        `Fix the following issue:\n\n${brief}\n\n` +
-                        `Existing code:\n\`\`\`openscad\n${existingCode}\n\`\`\``
-                    ),
-                ];
+                const msgs = buildCoderMessages(extensionUri, designBrief, existingCode, brief);
                 await runAgent(request.model, msgs, response, token, toolInvocationToken, '⚙️ Coder is applying fix…');
-                reportEntry = `### Coder Turn (step ${iterations})\nBrief: ${brief}`;
+                agentReports.push(`### Coder Turn\nBrief: ${brief}`);
                 trigger = `Coder completed its turn with brief: "${brief}"`;
-                break;
-            }
-            case 'CALL_REVIEWER': {
+            },
+            CALL_REVIEWER: async (brief) => {
                 response.markdown(`\n\n---\n## 🕵️ Reviewer\n\n`);
                 const code = await readCurrentCode();
-                const skill = loadSkill(extensionUri, 'scad-reviewer');
-                const msgs = [
-                    vscode.LanguageModelChatMessage.User(skill),
-                    vscode.LanguageModelChatMessage.User(
-                        `Review the following OpenSCAD code against the design brief.\n\n` +
-                        `**Design Brief:**\n${designBrief}\n\n` +
-                        `**Code:**\n\`\`\`openscad\n${code}\n\`\`\``
-                    ),
-                ];
+                const msgs = buildReviewerMessages(extensionUri, code, designBrief);
                 const raw = await runAgent(request.model, msgs, response, token, undefined, '🕵️ Reviewer is auditing…');
                 const report = parseReviewReport(raw);
-                reportEntry = `### Reviewer Report (step ${iterations})\n${report.raw}`;
+                agentReports.push(`### Reviewer Report\n${report.raw}`);
                 trigger = `Reviewer returned status: "${report.status}". Change Request: "${report.changeRequest ?? 'none'}"`;
-                break;
-            }
-            case 'CALL_QA': {
+            },
+            CALL_QA: async (brief) => {
                 response.markdown(`\n\n---\n## 🛡️ QA\n\n`);
                 const code = await readCurrentCode();
-                const skill = loadSkill(extensionUri, 'scad-qa');
-                const msgs = [
-                    vscode.LanguageModelChatMessage.User(skill),
-                    vscode.LanguageModelChatMessage.User(
-                        `Perform final QA on the following OpenSCAD model.\n\n` +
-                        `**Design Brief:**\n${designBrief}\n\n` +
-                        `**Code:**\n\`\`\`openscad\n${code}\n\`\`\``
-                    ),
-                ];
+                const msgs = buildQaMessages(extensionUri, code, designBrief);
                 const raw = await runAgent(request.model, msgs, response, token, toolInvocationToken, '🛡️ QA is verifying…');
                 const report = parseQaReport(raw);
-                reportEntry = `### QA Report (step ${iterations})\n${report.raw}`;
+                agentReports.push(`### QA Report\n${report.raw}`);
                 trigger = `QA returned result: "${report.result}". Change Request: "${report.changeRequest ?? 'none'}"`;
-                break;
-            }
-            case 'CALL_DEBUGGER': {
+            },
+            CALL_DEBUGGER: async (brief) => {
                 response.markdown(`\n\n---\n## 🩺 Debugger\n\n`);
                 const code = await readCurrentCode();
-                const skill = loadSkill(extensionUri, 'scad-debugger');
-                const msgs = [
-                    vscode.LanguageModelChatMessage.User(skill),
-                    vscode.LanguageModelChatMessage.User(
-                        `Diagnose the following OpenSCAD code.\n\n\`\`\`openscad\n${code}\n\`\`\``
-                    ),
-                ];
+                const msgs = buildDebuggerMessages(extensionUri, code);
                 const raw = await runAgent(request.model, msgs, response, token, toolInvocationToken, '🩺 Debugger is diagnosing…');
                 const report = parseDiagnosticReport(raw);
-                reportEntry = `### Debugger Report (step ${iterations})\n${report.raw}`;
+                agentReports.push(`### Debugger Report\n${report.raw}`);
                 trigger = `Debugger returned. Root cause: "${report.rootCause ?? 'unknown'}". Fix guidance: "${report.fixGuidance ?? 'none'}"`;
-                break;
-            }
-            default:
-                response.markdown(`\n\n⚠️ Unknown action "${decision.action}" — halting.`);
-                return {};
-        }
-
-        agentReports.push(reportEntry);
-    }
-
-    if (iterations >= MAX_ITERATIONS) {
-        response.markdown('\n\n⚠️ Safety cap reached — session ended after max iterations.\n\n');
-    }
+            },
+        },
+    });
 
     return { metadata: { phase: 'debug-complete' } };
-}
-
-/** Builds orchestrator messages from context. */
-function buildOrchestratorMessages(
-    skill: string,
-    ctx: OrchestratorContext
-): vscode.LanguageModelChatMessage[] {
-    const contextBlock = [
-        `**File:** ${ctx.fileDescription}`,
-        `**Design Brief / Goal:**\n${ctx.designBrief}`,
-        ctx.currentCode ? `**Current SCAD Code:**\n\`\`\`openscad\n${ctx.currentCode}\n\`\`\`` : '',
-        ctx.agentReports.length > 0
-            ? `**Subagent Reports This Session:**\n\n${ctx.agentReports.join('\n\n---\n\n')}`
-            : '',
-        `**Trigger:** ${ctx.trigger}`,
-    ].filter(Boolean).join('\n\n');
-
-    return [
-        vscode.LanguageModelChatMessage.User(skill),
-        vscode.LanguageModelChatMessage.User(
-            `Read the session context carefully and decide the next action.\n\n${contextBlock}`
-        ),
-    ];
 }
