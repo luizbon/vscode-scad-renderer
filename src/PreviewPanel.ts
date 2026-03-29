@@ -24,7 +24,7 @@ export class PreviewPanel {
 
     private readonly _panel: vscode.WebviewPanel;
     private readonly _extensionUri: vscode.Uri;
-    public documentUri: vscode.Uri;
+    public readonly documentUri: vscode.Uri;
     public execPath?: string;
     private _parameterOverrides: Record<string, ParameterValue> = {};
 
