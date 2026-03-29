@@ -1,0 +1,234 @@
+{
+  "name": "vscode-scad-renderer",
+  "displayName": "OpenSCAD Renderer",
+  "description": "Live 3D Preview of OpenSCAD files using Three.js",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "scad",
+        "extensions": [
+          ".scad"
+        ]
+      }
+    ],
+    "chatParticipants": [
+      {
+        "id": "scad.chat",
+        "name": "scad",
+        "description": "AI assistant for OpenSCAD 3D printing. Use /optimize, /parametric, or /printability.",
+        "isSticky": true,
+        "commands": [
+          {
+            "name": "optimize",
+            "description": "Optimise the active SCAD file for 3D printing (overhangs, wall thickness, support structures)"
+          },
+          {
+            "name": "parametric",
+            "description": "Refactor hard-coded values into parametric variables for reusable, customisable models"
+          },
+          {
+            "name": "printability",
+            "description": "Identify potential 3D printability issues: thin walls, unsupported geometry, non-manifold surfaces"
+          },
+          {
+            "name": "create",
+            "description": "Create a new 3D-printable model from a description — an AI interview extracts your requirements, then generates parametric OpenSCAD code"
+          },
+          {
+            "name": "debug",
+            "description": "Troubleshoot rendering errors and issues with your SCAD code."
+          }
+        ]
+      }
+    ],
+    "commands": [
+      {
+        "command": "scad-renderer.preview",
+        "title": "SCAD: Show 3D Preview"
+      },
+      {
+        "command": "scad-renderer.ai.optimize",
+        "title": "Optimise for 3D Printing",
+        "category": "SCAD AI"
+      },
+      {
+        "command": "scad-renderer.ai.parametric",
+        "title": "Make Parametric",
+        "category": "SCAD AI"
+      },
+      {
+        "command": "scad-renderer.ai.printability",
+        "title": "Identify Printability Issues",
+        "category": "SCAD AI"
+      },
+      {
+        "command": "scad-renderer.ai.debug",
+        "title": "Troubleshoot Rendering Error",
+        "category": "SCAD AI"
+      },
+      {
+        "command": "scad-renderer.ai.create",
+        "title": "Create New 3D Model…",
+        "category": "SCAD AI"
+      },
+      {
+        "command": "scad-renderer.ai.saveGeneratedCode",
+        "title": "Save Generated SCAD Code",
+        "category": "SCAD AI"
+      }
+    ],
+    "submenus": [
+      {
+        "id": "scad-renderer.aiSubmenu",
+        "label": "SCAD AI Assistant"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "scad-renderer.preview",
+          "when": "resourceLangId == scad",
+          "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "scad-renderer.preview",
+          "when": "resourceExtname == .scad",
+          "group": "navigation"
+        },
+        {
+          "submenu": "scad-renderer.aiSubmenu",
+          "when": "resourceExtname == .scad",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "submenu": "scad-renderer.aiSubmenu",
+          "when": "resourceLangId == scad",
+          "group": "navigation"
+        }
+      ],
+      "scad-renderer.aiSubmenu": [
+        {
+          "command": "scad-renderer.ai.create",
+          "group": "0_create"
+        },
+        {
+          "command": "scad-renderer.ai.debug",
+          "group": "1_ai"
+        },
+        {
+          "command": "scad-renderer.ai.optimize",
+          "group": "1_ai"
+        },
+        {
+          "command": "scad-renderer.ai.parametric",
+          "group": "1_ai"
+        },
+        {
+          "command": "scad-renderer.ai.printability",
+          "group": "1_ai"
+        }
+      ]
+    },
+    "languageModelTools": [
+      {
+        "name": "scad_renderer_render",
+        "displayName": "Render SCAD model",
+        "modelDescription": "Trigger a refresh of the 3D preview for the active OpenSCAD file. Use this after modifying the code to see changes.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "scad_renderer_capture_preview",
+        "displayName": "Capture SCAD Preview",
+        "modelDescription": "Capture a screenshot of the current 3D rendered model in the preview panel. This allows you to 'see' the current output.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "scad_renderer_update_code",
+        "displayName": "Update and Render Code",
+        "modelDescription": "Updates the active SCAD document with new code and triggers a render. Returns Success or Error logs.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "description": "The complete OpenSCAD source code to render."
+            }
+          },
+          "required": [
+            "code"
+          ]
+        }
+      },
+      {
+        "name": "scad_renderer_open_file",
+        "displayName": "Open SCAD File",
+        "modelDescription": "Opens a SCAD file in the editor. Use this to ensure the user can see the file you are working on.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The absolute or relative path to the SCAD file to open."
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      }
+    ],
+    "configuration": {
+      "title": "SCAD Renderer",
+      "properties": {
+        "scadRenderer.executablePath": {
+          "type": "string",
+          "default": "openscad",
+          "description": "Path to the OpenSCAD executable."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "package": "node esbuild.js --production",
+    "test": "mocha -r ts-node/register --timeout 10000 test/**/*.ts",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/chai": "^5.2.3",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@types/three": "^0.183.1",
+    "@types/vscode": "^1.90.0",
+    "@types/which": "^3.0.4",
+    "chai": "^6.2.2",
+    "esbuild": "^0.21.5",
+    "mocha": "^11.7.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "three": "^0.183.2",
+    "which": "^4.0.0"
+  }
+}
