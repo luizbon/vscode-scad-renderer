@@ -28,7 +28,7 @@ export class PreviewPanel {
     public execPath?: string;
     private _parameterOverrides: Record<string, ParameterValue> = {};
 
-    public get parameterOverrides(): Record<string, ParameterValue> {
+    public get parameterOverrides(): Readonly<Record<string, ParameterValue>> {
         return this._parameterOverrides;
     }
     private _disposables: vscode.Disposable[] = [];

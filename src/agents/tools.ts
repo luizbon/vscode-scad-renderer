@@ -7,21 +7,22 @@ export function registerScadTools(context: vscode.ExtensionContext) {
     // @ts-ignore
     context.subscriptions.push(vscode.lm.registerTool('scad_renderer_render', {
         async invoke(options: any, token: vscode.CancellationToken) {
-            if (!PreviewPanel.currentPanel) {
-                return { 
-                    content: [new vscode.LanguageModelTextPart('No active SCAD preview panel found. Please open a preview first.')] 
+            const panel = PreviewPanel.currentPanel;
+            if (!panel) {
+                return {
+                    content: [new vscode.LanguageModelTextPart('No active SCAD preview panel found. Please open a preview first.')]
                 };
             }
-            
-            const execPath = PreviewPanel.currentPanel.execPath;
+
+            const execPath = panel.execPath;
             if (!execPath) {
-                return { 
-                    content: [new vscode.LanguageModelTextPart('OpenSCAD executable path not configured.')] 
+                return {
+                    content: [new vscode.LanguageModelTextPart('OpenSCAD executable path not configured.')]
                 };
             }
 
             // Trigger render
-            await PreviewPanel.currentPanel.renderScad(execPath, PreviewPanel.currentPanel.documentUri);
+            await panel.renderScad(execPath, panel.documentUri);
             
             return { 
                 content: [new vscode.LanguageModelTextPart('Render triggered successfully. The preview has been updated.')] 
@@ -33,13 +34,14 @@ export function registerScadTools(context: vscode.ExtensionContext) {
     // @ts-ignore
     context.subscriptions.push(vscode.lm.registerTool('scad_renderer_capture_preview', {
         async invoke(options: any, token: vscode.CancellationToken) {
-            if (!PreviewPanel.currentPanel) {
-                return { 
-                    content: [new vscode.LanguageModelTextPart('No active SCAD preview panel found.')] 
+            const panel = PreviewPanel.currentPanel;
+            if (!panel) {
+                return {
+                    content: [new vscode.LanguageModelTextPart('No active SCAD preview panel found.')]
                 };
             }
 
-            const dataUrl = await PreviewPanel.currentPanel.capturePreview();
+            const dataUrl = await panel.capturePreview();
             if (!dataUrl) {
                 return { 
                     content: [new vscode.LanguageModelTextPart('Failed to capture preview image (panel might be hidden).')] 
@@ -65,16 +67,17 @@ export function registerScadTools(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.lm.registerTool('scad_renderer_update_code', {
         async invoke(options: vscode.LanguageModelToolInvocationOptions<any>, token: vscode.CancellationToken) {
             const input = options.input as { code: string };
-            if (!PreviewPanel.currentPanel) {
-                return { 
-                    content: [new vscode.LanguageModelTextPart('No active SCAD preview panel found. Please open a preview first.')] 
+            const panel = PreviewPanel.currentPanel;
+            if (!panel) {
+                return {
+                    content: [new vscode.LanguageModelTextPart('No active SCAD preview panel found. Please open a preview first.')]
                 };
             }
-            
-            const result = await PreviewPanel.currentPanel.renderScadContent(input.code);
-            
+
+            const result = await panel.renderScadContent(input.code);
+
             // Re-reveal the panel to make sure user sees the result
-            PreviewPanel.currentPanel.reveal();
+            panel.reveal();
 
             if (result.success) {
                 return { 
