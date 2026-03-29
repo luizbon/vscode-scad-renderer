@@ -12,7 +12,6 @@ import {
 
 export interface OrchestratorLoopConfig {
     model: vscode.LanguageModelChat;
-    extensionUri: vscode.Uri;
     context: OrchestratorContext;
     response: vscode.ChatResponseStream;
     token: vscode.CancellationToken;
@@ -99,7 +98,7 @@ export async function runOrchestratorLoop(
         const handler = handlers[decision.action];
 
         if (!handler) {
-            response.markdown(`\n\n⚠️ Unknown orchestrator action "${decision.action}" — halting.`);
+            response.markdown(`\n\n⚠️ No handler registered for orchestrator action: ${decision.action}. Stopping.`);
             break;
         }
 

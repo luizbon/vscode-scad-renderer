@@ -236,7 +236,6 @@ export async function handleCreateRequest(
 
     await runOrchestratorLoop({
         model: model(request),
-        extensionUri,
         context: {
             fileDescription: vscode.workspace.asRelativePath(uri),
             designBrief: designBriefText,

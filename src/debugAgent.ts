@@ -110,7 +110,6 @@ export async function handleDebugRequest(
 
     await runOrchestratorLoop({
         model: request.model,
-        extensionUri,
         context: {
             fileDescription,
             designBrief,
