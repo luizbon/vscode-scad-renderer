@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { PreviewPanel } from './PreviewPanel';
 import { handleCreateRequest, registerSaveCommand } from './createAgent';
+import { handleDebugRequest } from './debugAgent';
 
 const PARTICIPANT_ID = 'scad.chat';
 let contextualFileUri: vscode.Uri | undefined;
@@ -66,6 +67,7 @@ Analyze:
 Identify the root cause of the failure and provide a corrected version of the code snippet or the full file.
 Explain why the issue occurred (e.g., empty geometry result, manifold error, or syntax mistake).`
 };
+// NOTE: 'debug' key kept for fallback only; /debug is now handled by the agentic pipeline.
 
 function getActiveScadContent(): string | null {
     const editor = vscode.window.activeTextEditor;
@@ -103,6 +105,11 @@ export async function handleChatRequest(
     // Route /create to the two-agent pipeline
     if (command === 'create') {
         return handleCreateRequest(extensionUri, request, _context, response, token, request.toolInvocationToken);
+    }
+
+    // Route /debug to the agentic debug pipeline
+    if (command === 'debug') {
+        return handleDebugRequest(extensionUri, request, _context, response, token, request.toolInvocationToken);
     }
 
     // Check if we're in an active /create interview session.
