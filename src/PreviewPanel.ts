@@ -73,7 +73,14 @@ export class PreviewPanel {
                 resolve("");
                 return;
             }
-            this._captureResolver = resolve;
+            const timeout = setTimeout(() => {
+                this._captureResolver = undefined;
+                resolve("");
+            }, 5000);
+            this._captureResolver = (image: string) => {
+                clearTimeout(timeout);
+                resolve(image);
+            };
             this._panel.webview.postMessage({ command: 'capturePreview' });
         });
     }
@@ -154,8 +161,7 @@ export class PreviewPanel {
 
     public async renderScad(execPath: string, documentUri: vscode.Uri): Promise<{ success: boolean; error?: string }> {
         this.execPath = execPath;
-        this.documentUri = documentUri;
-        
+
         try {
             const runner = new ScadRunner(execPath);
             const data = await runner.render(documentUri.fsPath, this._parameterOverrides);

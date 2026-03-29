@@ -87,8 +87,11 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register tools, chat and AI commands
     registerScadTools(context);
-    registerChatParticipant(context);
-    registerAiCommands(context);
+    let contextualFileUri: vscode.Uri | undefined;
+    const setContextualUri = (uri: vscode.Uri | undefined) => { contextualFileUri = uri; };
+    const getContextualUri = () => contextualFileUri;
+    registerChatParticipant(context, setContextualUri, getContextualUri);
+    registerAiCommands(context, setContextualUri);
 
     context.subscriptions.push(
         vscode.commands.registerCommand('scad-renderer.preview', async (uri?: vscode.Uri) => {

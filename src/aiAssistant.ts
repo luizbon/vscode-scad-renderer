@@ -4,7 +4,6 @@ import { handleCreateRequest, registerSaveCommand } from './createAgent';
 import { handleDebugRequest } from './debugAgent';
 
 const PARTICIPANT_ID = 'scad.chat';
-let contextualFileUri: vscode.Uri | undefined;
 
 // System prompt shared across all commands — establishes the domain expert persona
 const BASE_SYSTEM_PROMPT = `You are an expert OpenSCAD developer and 3D printing specialist.
@@ -76,9 +75,9 @@ function getActiveScadContent(): string | null {
     return editor.document.getText();
 }
 
-async function runAiCommand(command: 'optimize' | 'parametric' | 'printability' | 'debug', uri?: vscode.Uri): Promise<void> {
-    contextualFileUri = uri;
-    
+async function runAiCommand(command: 'optimize' | 'parametric' | 'printability' | 'debug', setContextualUri: (uri: vscode.Uri | undefined) => void, uri?: vscode.Uri): Promise<void> {
+    setContextualUri(uri);
+
     // If we don't have a URI and no active editor, we can't proceed
     if (!uri && !vscode.window.activeTextEditor) {
         await vscode.window.showErrorMessage('Please open a .scad file first or right-click one in the Explorer.');
@@ -97,7 +96,9 @@ export async function handleChatRequest(
     request: vscode.ChatRequest,
     _context: vscode.ChatContext,
     response: vscode.ChatResponseStream,
-    token: vscode.CancellationToken
+    token: vscode.CancellationToken,
+    getContextualUri: () => vscode.Uri | undefined,
+    clearContextualUri: () => void
 ): Promise<vscode.ChatResult> {
 
     const command = request.command ?? '';
@@ -149,6 +150,8 @@ Open a \`.scad\` file and use one of the commands above, or right-click a \`.sca
     let overrides: Record<string, any> | undefined;
     let renderError: string | undefined;
 
+    const contextualFileUri = getContextualUri();
+
     if (!scadCode) {
         if (contextualFileUri) {
             try {
@@ -160,7 +163,7 @@ Open a \`.scad\` file and use one of the commands above, or right-click a \`.sca
                 // Ignore
             }
         }
-        
+
         if (!scadCode) {
             const editor = vscode.window.activeTextEditor;
             if (editor && editor.document.uri.fsPath.endsWith('.scad')) {
@@ -173,13 +176,13 @@ Open a \`.scad\` file and use one of the commands above, or right-click a \`.sca
         if (!scadCode) {
             const potentialUri = contextualFileUri || vscode.window.activeTextEditor?.document.uri;
             const panel = potentialUri ? PreviewPanel.panels.get(potentialUri.toString()) : Array.from(PreviewPanel.panels.values())[0];
-            
+
             if (panel) {
                 try {
                     const uri = panel.documentUri;
                     const bytes = await vscode.workspace.fs.readFile(uri);
                     scadCode = new TextDecoder().decode(bytes);
-                    
+
                     overrides = panel.parameterOverrides;
                     renderError = panel.lastLogs;
 
@@ -200,9 +203,9 @@ Open a \`.scad\` file and use one of the commands above, or right-click a \`.sca
             renderError = panel.lastLogs;
         }
     }
-    
+
     // Clear the contextual URI after it's been "consumed" or at least attempted
-    contextualFileUri = undefined;
+    clearContextualUri();
 
     if (!scadCode) {
         response.markdown('⚠️ Please open a `.scad` file, a preview, or paste some OpenSCAD code into the chat.');
@@ -310,11 +313,12 @@ Open a \`.scad\` file and use one of the commands above, or right-click a \`.sca
     };
 }
 
-export function registerChatParticipant(context: vscode.ExtensionContext): void {
+export function registerChatParticipant(context: vscode.ExtensionContext, setContextualUri: (uri: vscode.Uri | undefined) => void, getContextualUri: () => vscode.Uri | undefined): void {
     const extensionUri = context.extensionUri;
+    const clearContextualUri = () => setContextualUri(undefined);
     const participant = vscode.chat.createChatParticipant(
         PARTICIPANT_ID,
-        (request, ctx, response, token) => handleChatRequest(extensionUri, request, ctx, response, token)
+        (request, ctx, response, token) => handleChatRequest(extensionUri, request, ctx, response, token, getContextualUri, clearContextualUri)
     );
     participant.iconPath = new vscode.ThemeIcon('symbol-misc');
 
@@ -355,7 +359,7 @@ export function registerChatParticipant(context: vscode.ExtensionContext): void 
     context.subscriptions.push(participant);
 }
 
-export function registerAiCommands(context: vscode.ExtensionContext): void {
+export function registerAiCommands(context: vscode.ExtensionContext, setContextualUri: (uri: vscode.Uri | undefined) => void): void {
     const commands: Array<[string, 'optimize' | 'parametric' | 'printability' | 'debug']> = [
         ['scad-renderer.ai.optimize', 'optimize'],
         ['scad-renderer.ai.parametric', 'parametric'],
@@ -365,7 +369,7 @@ export function registerAiCommands(context: vscode.ExtensionContext): void {
 
     for (const [commandId, cmd] of commands) {
         context.subscriptions.push(
-            vscode.commands.registerCommand(commandId, (uri?: vscode.Uri) => runAiCommand(cmd, uri))
+            vscode.commands.registerCommand(commandId, (uri?: vscode.Uri) => runAiCommand(cmd, setContextualUri, uri))
         );
     }
 
