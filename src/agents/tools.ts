@@ -84,6 +84,10 @@ export function registerScadTools(context: vscode.ExtensionContext) {
     }));
 
     // 3. Tool to update code and render
+    //
+    // Uses vscode.workspace.applyEdit so changes appear in the editor's change
+    // gutter (blue bars), are fully undoable, and show up in git diff — the same
+    // mechanism VS Code's own AI agents use for tracked edits.
     context.subscriptions.push(vscode.lm.registerTool('scad_renderer_update_code', {
         async invoke(options: vscode.LanguageModelToolInvocationOptions<any>, token: vscode.CancellationToken) {
             const input = options.input as { code: string };
@@ -94,18 +98,55 @@ export function registerScadTools(context: vscode.ExtensionContext) {
                 };
             }
 
-            const result = await panel.renderScadContent(input.code);
+            const documentUri = panel.documentUri;
 
-            // Re-reveal the panel to make sure user sees the result
+            // Open the document so VS Code is tracking it, then apply the edit
+            // through the text document model for proper change tracking.
+            let document: vscode.TextDocument;
+            try {
+                document = await vscode.workspace.openTextDocument(documentUri);
+            } catch (e: any) {
+                return {
+                    content: [new vscode.LanguageModelTextPart(`Failed to open document: ${e.message}`)]
+                };
+            }
+
+            const fullRange = new vscode.Range(
+                document.positionAt(0),
+                document.positionAt(document.getText().length)
+            );
+
+            const edit = new vscode.WorkspaceEdit();
+            edit.replace(documentUri, fullRange, input.code);
+
+            const applied = await vscode.workspace.applyEdit(edit);
+            if (!applied) {
+                return {
+                    content: [new vscode.LanguageModelTextPart('Failed to apply edit to document.')]
+                };
+            }
+
+            // Save so the OpenSCAD renderer picks up the changes from disk.
+            await document.save();
+
+            // Re-render the saved file and reveal the preview panel.
+            const execPath = panel.execPath;
+            if (!execPath) {
+                return {
+                    content: [new vscode.LanguageModelTextPart('Edit saved but OpenSCAD executable path is not configured — skipping render.')]
+                };
+            }
+
+            const result = await panel.renderScad(execPath, documentUri);
             panel.reveal();
 
             if (result.success) {
-                return { 
-                    content: [new vscode.LanguageModelTextPart('Code rendered in preview successfully.')] 
+                return {
+                    content: [new vscode.LanguageModelTextPart('Code updated and rendered successfully. Changes are tracked in the editor.')]
                 };
             } else {
-                return { 
-                    content: [new vscode.LanguageModelTextPart(`Rendering failed with error: ${result.error}`)] 
+                return {
+                    content: [new vscode.LanguageModelTextPart(`Code saved but rendering failed: ${result.error}`)]
                 };
             }
         }
