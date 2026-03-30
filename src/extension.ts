@@ -93,6 +93,15 @@ export function activate(context: vscode.ExtensionContext) {
         });
     };
 
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeConfiguration(e => {
+            if (e.affectsConfiguration('scadRenderer.executablePath')) {
+                scadInstallationChecked = false;
+                cachedScadPath = undefined;
+            }
+        })
+    );
+
     // Register tools, chat and AI commands
     registerScadTools(context);
     let contextualFileUri: vscode.Uri | undefined;

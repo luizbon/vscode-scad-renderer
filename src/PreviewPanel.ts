@@ -136,7 +136,7 @@ export class PreviewPanel {
         const tmpFile = path.join(tmpDir, `preview_${Date.now()}.scad`);
         
         try {
-            fs.writeFileSync(tmpFile, code, 'utf-8');
+            await fs.promises.writeFile(tmpFile, code, 'utf-8');
             const runner = new ScadRunner(this.execPath);
             const data = await runner.render(tmpFile, this._parameterOverrides);
             

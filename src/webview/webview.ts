@@ -6,8 +6,8 @@ const vscode = acquireVsCodeApi();
 
 const viewer = new Viewer();
 
+let handler: MessageHandler;
 const customizer = new Customizer((name, value, instant) => {
-    handler.sendParameterChanged(name, value, instant);
+    handler!.sendParameterChanged(name, value, instant);
 });
-
-const handler = new MessageHandler(vscode, viewer, customizer);
+handler = new MessageHandler(vscode, viewer, customizer);
