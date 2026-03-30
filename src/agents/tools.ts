@@ -1,6 +1,19 @@
 import * as vscode from 'vscode';
 import { PreviewPanel } from '../PreviewPanel';
 
+function isValidScadPath(filePath: string): boolean {
+    if (!filePath.endsWith('.scad')) {
+        return false;
+    }
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+        return false;
+    }
+    return workspaceFolders.some(folder =>
+        filePath.startsWith(folder.uri.fsPath)
+    );
+}
+
 // Define the tools in package.json as well for chat discovery
 export function registerScadTools(context: vscode.ExtensionContext) {
     // 1. Tool to trigger a render
@@ -101,15 +114,20 @@ export function registerScadTools(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.lm.registerTool('scad_renderer_open_file', {
         async invoke(options: vscode.LanguageModelToolInvocationOptions<any>, token: vscode.CancellationToken) {
             const input = options.input as { path: string };
+            if (!isValidScadPath(input.path)) {
+                return new vscode.LanguageModelToolResult([
+                    new vscode.LanguageModelTextPart(`Error: Can only open .scad files within the current workspace. Provided path: ${input.path}`)
+                ]);
+            }
             try {
                 const uri = vscode.Uri.file(input.path);
                 await vscode.window.showTextDocument(uri);
-                return { 
-                    content: [new vscode.LanguageModelTextPart(`File ${input.path} opened in editor.`)] 
+                return {
+                    content: [new vscode.LanguageModelTextPart(`File ${input.path} opened in editor.`)]
                 };
             } catch (e: any) {
-                return { 
-                    content: [new vscode.LanguageModelTextPart(`Failed to open file: ${e.message}`)] 
+                return {
+                    content: [new vscode.LanguageModelTextPart(`Failed to open file: ${e.message}`)]
                 };
             }
         }

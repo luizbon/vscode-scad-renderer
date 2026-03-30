@@ -8,6 +8,9 @@ import { registerChatParticipant, registerAiCommands } from './aiAssistant';
 import { registerScadTools } from './agents/tools';
 import { InstructionManager } from './agents/instructionManager';
 
+let scadInstallationChecked = false;
+let cachedScadPath: string | undefined;
+
 export function activate(context: vscode.ExtensionContext) {
     console.log('vscode-scad-renderer is now active');
 
@@ -15,6 +18,7 @@ export function activate(context: vscode.ExtensionContext) {
     InstructionManager.checkAndPrompt(context);
 
     const checkScadInstallation = async (): Promise<string | undefined> => {
+        if (scadInstallationChecked) { return cachedScadPath; }
         // 1. Check if the system path or settings path is compatible
         const config = vscode.workspace.getConfiguration('scadRenderer');
         let fallbackPath = config.get<string>('executablePath');
@@ -32,6 +36,8 @@ export function activate(context: vscode.ExtensionContext) {
             const runner = new ScadRunner(fallbackPath);
             const supports = await runner.supportsManifold();
             if (supports) {
+                scadInstallationChecked = true;
+                cachedScadPath = fallbackPath;
                 return fallbackPath;
             }
             console.log(`System OpenSCAD at ${fallbackPath} does not support Manifold.`);

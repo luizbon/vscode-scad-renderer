@@ -34,12 +34,12 @@ The session is managed by an **Orchestrator** that delegates to specialized role
         const folders = vscode.workspace.workspaceFolders;
         if (!folders) return;
 
+        // Check if this project is 3D related (contains .scad files anywhere in workspace)
+        const isScadProject = await InstructionManager.detectScadProject();
+        if (!isScadProject) return;
+
         for (const folder of folders) {
             const workspacePath = folder.uri.fsPath;
-            
-            // Check if this project is 3D related (contains .scad files or has a scad-related name)
-            const isScadProject = await InstructionManager.detectScadProject(workspacePath);
-            if (!isScadProject) continue;
 
             const agentsFile = path.join(workspacePath, InstructionManager.AGENT_FILE);
             const exists = fs.existsSync(agentsFile);
@@ -71,21 +71,8 @@ The session is managed by an **Orchestrator** that delegates to specialized role
         }
     }
 
-    private static async detectScadProject(root: string): Promise<boolean> {
-        // Simple detection: find any 3D-related file or check name
-        try {
-            const files = fs.readdirSync(root);
-            const has3DFile = files.some(f => {
-                const ext = path.extname(f).toLowerCase();
-                return ext === '.scad' || ext === '.stl' || ext === '.3mf';
-            });
-            if (has3DFile) return true;
-            
-            const isScadName = root.toLowerCase().includes('scad') || root.toLowerCase().includes('3d-print');
-            if (isScadName) return true;
-        } catch (e) {
-            // Permission errors etc
-        }
-        return false;
+    private static async detectScadProject(): Promise<boolean> {
+        const files = await vscode.workspace.findFiles('**/*.scad', '**/node_modules/**', 1);
+        return files.length > 0;
     }
 }
