@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { PreviewPanel } from '../PreviewPanel';
 
 function isValidScadPath(filePath: string): boolean {
@@ -10,7 +11,7 @@ function isValidScadPath(filePath: string): boolean {
         return false;
     }
     return workspaceFolders.some(folder =>
-        filePath.startsWith(folder.uri.fsPath)
+        filePath.startsWith(folder.uri.fsPath + path.sep)
     );
 }
 

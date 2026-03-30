@@ -57,6 +57,8 @@ export function activate(context: vscode.ExtensionContext) {
             showUpgradeGuidance();
         } else if (selection === 'Use anyway (Legacy)') {
             if (fallbackPath) {
+                scadInstallationChecked = true;
+                cachedScadPath = fallbackPath;
                 return fallbackPath;
             } else {
                 vscode.window.showErrorMessage('No OpenSCAD installation found. Please install OpenSCAD or specify the path in settings.');
