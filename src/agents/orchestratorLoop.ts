@@ -2,9 +2,27 @@ import * as vscode from 'vscode';
 import { runAgent } from './runner';
 import {
     parseOrchestratorDecision,
+    stripSentinelBlocks,
     OrchestratorContext,
     OrchestratorDecision,
 } from './reportParsers';
+
+/**
+ * A no-op ChatResponseStream that silently discards all output.
+ * Used for internal agent-to-agent communication so it doesn't leak into the user chat.
+ */
+export function createSilentStream(): vscode.ChatResponseStream {
+    const noop = () => {};
+    return {
+        markdown: noop,
+        anchor: noop,
+        button: noop,
+        filetree: noop,
+        progress: noop,
+        reference: noop,
+        push: noop,
+    } as unknown as vscode.ChatResponseStream;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public types
@@ -76,21 +94,25 @@ export async function runOrchestratorLoop(
     while (!token.isCancellationRequested && iterations < maxIterations) {
         iterations++;
 
-        response.markdown(`\n\n---\n## 🛸 Orchestrator (step ${iterations})\n\n`);
+        response.progress(`🛸 Orchestrator deciding… (step ${iterations})`);
 
         const messages = config.buildOrchestratorMessages(currentContext);
-        const raw = await runAgent(model, messages, response, token, undefined, '🛸 Orchestrator is deciding…');
+        const raw = await runAgent(model, messages, createSilentStream(), token, undefined, '');
         const decision = parseOrchestratorDecision(raw);
+
+        const visibleText = stripSentinelBlocks(raw);
+        if (visibleText) {
+            response.markdown(visibleText + '\n\n');
+        }
         finalDecision = decision;
 
         if (token.isCancellationRequested) { break; }
 
         if (decision.action === 'DONE') {
-            response.markdown('\n\n✅ **Orchestrator declared the session complete.**\n\n');
             break;
         }
         if (decision.action === 'UNKNOWN') {
-            response.markdown('\n\n⚠️ Orchestrator could not decide — halting session.\n\n');
+            response.markdown('⚠️ Orchestrator could not decide — halting session.\n\n');
             break;
         }
 
@@ -111,7 +133,7 @@ export async function runOrchestratorLoop(
 
     const hitMaxIterations = iterations >= maxIterations && finalDecision?.action !== 'DONE';
     if (hitMaxIterations) {
-        response.markdown('\n\n⚠️ Safety cap reached — session ended after max iterations.\n\n');
+        response.markdown('⚠️ Safety cap reached — session ended after max iterations.\n\n');
     }
 
     return { iterations, finalDecision, hitMaxIterations };

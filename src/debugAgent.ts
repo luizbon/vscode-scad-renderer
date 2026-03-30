@@ -13,7 +13,8 @@ import {
     buildQaMessages,
     buildDebuggerMessages,
 } from './agents/messageBuilders';
-import { runOrchestratorLoop } from './agents/orchestratorLoop';
+import { runOrchestratorLoop, createSilentStream } from './agents/orchestratorLoop';
+import { stripSentinelBlocks } from './agents/reportParsers';
 
 /**
  * Orchestrates the /debug flow.
@@ -83,12 +84,14 @@ export async function handleDebugRequest(
 
     // ── 3. Initial Debugger turn — diagnose the root cause ────────────────────
 
-    response.markdown('\n\n---\n## 🩺 Debugger Analysis\n\n');
+    response.progress('🩺 Debugger is analysing…');
 
     const debuggerMessages = buildDebuggerMessages(extensionUri, scadCode, renderLogs);
     const debuggerOutput = await runAgent(
-        request.model, debuggerMessages, response, token, toolInvocationToken, '🩺 Debugger is analysing…'
+        request.model, debuggerMessages, createSilentStream(), token, toolInvocationToken, ''
     );
+    const debuggerVisible = stripSentinelBlocks(debuggerOutput);
+    if (debuggerVisible) { response.markdown(debuggerVisible + '\n\n'); }
     const diagnosticReport = parseDiagnosticReport(debuggerOutput);
 
     if (token.isCancellationRequested) { return {}; }
@@ -128,42 +131,56 @@ export async function handleDebugRequest(
         },
         handlers: {
             CALL_CODER: async (brief) => {
-                response.markdown(`\n\n---\n## 🖨️ Coder\n\n`);
+                response.progress('⚙️ Coder is applying fix…');
                 const existingCode = await readCurrentCode();
                 const msgs = buildCoderMessages(extensionUri, designBrief, existingCode, brief);
-                await runAgent(request.model, msgs, response, token, toolInvocationToken, '⚙️ Coder is applying fix…');
+                const raw = await runAgent(request.model, msgs, createSilentStream(), token, toolInvocationToken, '');
+                const visible = stripSentinelBlocks(raw);
+                if (visible) { response.markdown(visible + '\n\n'); }
                 agentReports.push(`### Coder Turn\nBrief: ${brief}`);
                 trigger = `Coder completed its turn with brief: "${brief}"`;
             },
             CALL_REVIEWER: async (brief) => {
-                response.markdown(`\n\n---\n## 🕵️ Reviewer\n\n`);
+                response.progress('🕵️ Reviewer is auditing…');
                 const code = await readCurrentCode();
                 const msgs = buildReviewerMessages(extensionUri, code, designBrief);
-                const raw = await runAgent(request.model, msgs, response, token, undefined, '🕵️ Reviewer is auditing…');
+                const raw = await runAgent(request.model, msgs, createSilentStream(), token, undefined, '');
                 const report = parseReviewReport(raw);
+                const visible = stripSentinelBlocks(raw);
+                if (visible) { response.markdown(visible + '\n\n'); }
                 agentReports.push(`### Reviewer Report\n${report.raw}`);
                 trigger = `Reviewer returned status: "${report.status}". Change Request: "${report.changeRequest ?? 'none'}"`;
             },
             CALL_QA: async (brief) => {
-                response.markdown(`\n\n---\n## 🛡️ QA\n\n`);
+                response.progress('🛡️ QA is verifying…');
                 const code = await readCurrentCode();
                 const msgs = buildQaMessages(extensionUri, code, designBrief);
-                const raw = await runAgent(request.model, msgs, response, token, toolInvocationToken, '🛡️ QA is verifying…');
+                const raw = await runAgent(request.model, msgs, createSilentStream(), token, toolInvocationToken, '');
                 const report = parseQaReport(raw);
+                const visible = stripSentinelBlocks(raw);
+                if (visible) { response.markdown(visible + '\n\n'); }
                 agentReports.push(`### QA Report\n${report.raw}`);
                 trigger = `QA returned result: "${report.result}". Change Request: "${report.changeRequest ?? 'none'}"`;
             },
             CALL_DEBUGGER: async (brief) => {
-                response.markdown(`\n\n---\n## 🩺 Debugger\n\n`);
+                response.progress('🩺 Debugger is diagnosing…');
                 const code = await readCurrentCode();
                 const msgs = buildDebuggerMessages(extensionUri, code);
-                const raw = await runAgent(request.model, msgs, response, token, toolInvocationToken, '🩺 Debugger is diagnosing…');
+                const raw = await runAgent(request.model, msgs, createSilentStream(), token, toolInvocationToken, '');
                 const report = parseDiagnosticReport(raw);
+                const visible = stripSentinelBlocks(raw);
+                if (visible) { response.markdown(visible + '\n\n'); }
                 agentReports.push(`### Debugger Report\n${report.raw}`);
                 trigger = `Debugger returned. Root cause: "${report.rootCause ?? 'unknown'}". Fix guidance: "${report.fixGuidance ?? 'none'}"`;
             },
         },
     });
+
+    response.markdown(
+        `✅ **Debug session complete.**\n\n` +
+        `Root cause: *${diagnosticReport.rootCause ?? 'See debugger analysis above.'}*\n\n` +
+        (diagnosticReport.fixGuidance ? `Fix applied: ${diagnosticReport.fixGuidance}` : '')
+    );
 
     return { metadata: { phase: 'debug-complete' } };
 }

@@ -5,6 +5,36 @@
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Sentinel block stripping
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SENTINEL_PAIRS = [
+    ['ORCHESTRATOR_DECISION_START', 'ORCHESTRATOR_DECISION_END'],
+    ['DIAGNOSTIC_REPORT_START',     'DIAGNOSTIC_REPORT_END'],
+    ['REVIEW_REPORT_START',         'REVIEW_REPORT_END'],
+    ['QA_REPORT_START',             'QA_REPORT_END'],
+    ['DESIGN_BRIEF_START',          'DESIGN_BRIEF_END'],
+] as const;
+
+/**
+ * Removes all machine-readable sentinel blocks from agent output,
+ * leaving only the natural-language portions readable by the user.
+ */
+export function stripSentinelBlocks(text: string): string {
+    let result = text;
+    for (const [start, end] of SENTINEL_PAIRS) {
+        const startIdx = result.indexOf(start);
+        const endIdx   = result.indexOf(end);
+        if (startIdx !== -1 && endIdx !== -1) {
+            result = result.substring(0, startIdx) + result.substring(endIdx + end.length);
+        }
+    }
+    // Also strip standalone action tokens like ACTION:GENERATE_CODE
+    result = result.replace(/\bACTION:[A-Z_]+\b/g, '');
+    return result.trim();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Diagnostic Report (Debugger Agent)
 // ─────────────────────────────────────────────────────────────────────────────
 

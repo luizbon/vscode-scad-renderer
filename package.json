@@ -206,6 +206,9 @@
       }
     }
   },
+  "extensionDependencies": [
+    "leathong.openscad-language-support"
+  ],
   "scripts": {
     "vscode:prepublish": "npm run package",
     "compile": "node esbuild.js",
