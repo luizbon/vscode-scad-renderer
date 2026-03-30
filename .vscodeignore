@@ -1,9 +1,13 @@
 .vscode/**
 .vscode-test/**
 out/**
-node_modules/**
+.agents/**
+.github/**
+test/**
 src/**
-.gitignore
-.yarnrc
-**/*.map
+eslint.config.js
+CLAUDE.md
+*.map
 **/*.ts
+!dist/**
+node_modules/**

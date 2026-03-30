@@ -2,13 +2,46 @@
   "name": "vscode-scad-renderer",
   "displayName": "OpenSCAD Renderer",
   "description": "Live 3D Preview of OpenSCAD files using Three.js",
-  "version": "0.0.1",
+  "version": "0.1.0",
+  "publisher": "luizbon",
+  "author": {
+    "name": "Luiz Bon",
+    "url": "https://github.com/luizbon"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/luizbon/vscode-scad-renderer"
+  },
+  "homepage": "https://github.com/luizbon/vscode-scad-renderer#readme",
+  "bugs": {
+    "url": "https://github.com/luizbon/vscode-scad-renderer/issues"
+  },
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#1e1e1e",
+    "theme": "dark"
+  },
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "openscad",
+    "3d",
+    "cad",
+    "preview",
+    "stl",
+    "3d-printing",
+    "parametric"
+  ],
+  "activationEvents": [
+    "onLanguage:scad",
+    "workspaceContains:**/*.scad"
+  ],
   "engines": {
     "vscode": "^1.95.0"
   },
-  "categories": [
-    "Other"
-  ],
   "main": "./dist/extension.js",
   "contributes": {
     "languages": [
@@ -83,6 +116,11 @@
         "command": "scad-renderer.ai.saveGeneratedCode",
         "title": "Save Generated SCAD Code",
         "category": "SCAD AI"
+      },
+      {
+        "command": "scad-renderer.reportIssue",
+        "title": "Report an Issue",
+        "category": "SCAD"
       }
     ],
     "submenus": [
@@ -216,7 +254,7 @@
     "package": "node esbuild.js --production",
     "test": "mocha -r test/setup.js -r ts-node/register --timeout 10000 'test/**/*.ts'",
     "test:coverage": "c8 mocha -r test/setup.js -r ts-node/register --timeout 10000 'test/**/*.ts'",
-    "lint": "eslint src --ext ts"
+    "lint": "eslint src --ext .ts"
   },
   "devDependencies": {
     "@types/chai": "^5.2.3",
@@ -226,9 +264,12 @@
     "@types/three": "^0.183.1",
     "@types/vscode": "^1.90.0",
     "@types/which": "^3.0.4",
+    "@typescript-eslint/eslint-plugin": "^8.57.2",
+    "@typescript-eslint/parser": "^8.57.2",
     "c8": "^11.0.0",
     "chai": "^6.2.2",
     "esbuild": "^0.21.5",
+    "eslint": "^10.1.0",
     "mocha": "^11.7.5",
     "proxyquire": "^2.1.3",
     "ts-node": "^10.9.2",

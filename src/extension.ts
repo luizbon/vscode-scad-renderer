@@ -7,12 +7,16 @@ import { ScadRunner } from './scadRunner';
 import { registerChatParticipant, registerAiCommands } from './aiAssistant';
 import { registerScadTools } from './agents/tools';
 import { InstructionManager } from './agents/instructionManager';
+import { initTelemetry, sendEvent, sendError } from './telemetry';
 
 let scadInstallationChecked = false;
 let cachedScadPath: string | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('vscode-scad-renderer is now active');
+
+    initTelemetry(context);
+    sendEvent('extension.activated');
 
     // Manage AI instructions in the workspace
     InstructionManager.checkAndPrompt(context);
@@ -113,7 +117,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('scad-renderer.preview', async (uri?: vscode.Uri) => {
             let documentUri = uri;
-            
+
             if (!documentUri) {
                 const editor = vscode.window.activeTextEditor;
                 if (!editor) {
@@ -128,10 +132,20 @@ export function activate(context: vscode.ExtensionContext) {
                 return;
             }
 
+            sendEvent('preview.opened', { documentExtension: '.scad' });
+
             const execPath = await checkScadInstallation();
             if (execPath) {
                 PreviewPanel.createOrShow(context.extensionUri, execPath, documentUri);
             }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('scad-renderer.reportIssue', () => {
+            vscode.env.openExternal(vscode.Uri.parse(
+                'https://github.com/luizbon/vscode-scad-renderer/issues/new?template=bug_report.md'
+            ));
         })
     );
 
