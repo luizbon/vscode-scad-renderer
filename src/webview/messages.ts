@@ -46,6 +46,14 @@ export class MessageHandler {
         }
     }
 
+    public sendRenderModeChanged(mode: 'solid' | 'wireframe' | 'xray') {
+        this.vscode.postMessage({ command: 'renderModeChanged', mode });
+    }
+
+    public sendCameraProjectionChanged(projection: 'perspective' | 'orthographic') {
+        this.vscode.postMessage({ command: 'cameraProjectionChanged', projection });
+    }
+
     public sendParameterChanged(name: string, value: ParameterValue, instant: boolean) {
         if (this.debounceTimer) { clearTimeout(this.debounceTimer); }
 

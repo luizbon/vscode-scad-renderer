@@ -20,4 +20,6 @@ export type ExtensionToWebviewMessage =
 // Messages sent from the webview to the extension host
 export type WebviewToExtensionMessage =
     | { command: 'previewCaptured'; data: string }
-    | { command: 'parameterChanged'; name: string; value: ParameterValue };
+    | { command: 'parameterChanged'; name: string; value: ParameterValue }
+    | { command: 'renderModeChanged'; mode: 'solid' | 'wireframe' | 'xray' }
+    | { command: 'cameraProjectionChanged'; projection: 'perspective' | 'orthographic' };
