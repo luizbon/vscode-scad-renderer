@@ -49,10 +49,11 @@ export async function runAgent(
         .filter((t: any) => t.name.startsWith('scad_renderer_'));
 
     let fullResponse = '';
+    const workingMessages = [...messages];
 
     try {
         let chatResponse = await model.sendRequest(
-            messages,
+            workingMessages,
             { tools: availableTools },
             token
         );
@@ -79,15 +80,15 @@ export async function runAgent(
                 response.progress(`🛠️ Tool: ${call.name}…`);
                 try {
                     const result = await vscode.lm.invokeTool(call.name, { input: call.input, toolInvocationToken }, token);
-                    messages.push(vscode.LanguageModelChatMessage.Assistant([call]));
-                    messages.push(vscode.LanguageModelChatMessage.User([
+                    workingMessages.push(vscode.LanguageModelChatMessage.Assistant([call]));
+                    workingMessages.push(vscode.LanguageModelChatMessage.User([
                         new vscode.LanguageModelToolResultPart(call.callId, [
                             new vscode.LanguageModelTextPart(JSON.stringify(result.content))
                         ])
                     ]));
                 } catch (err: any) {
-                    messages.push(vscode.LanguageModelChatMessage.Assistant([call]));
-                    messages.push(vscode.LanguageModelChatMessage.User([
+                    workingMessages.push(vscode.LanguageModelChatMessage.Assistant([call]));
+                    workingMessages.push(vscode.LanguageModelChatMessage.User([
                         new vscode.LanguageModelToolResultPart(call.callId, [
                             new vscode.LanguageModelTextPart(`Tool error: ${err?.message ?? String(err)}`)
                         ])
@@ -97,7 +98,7 @@ export async function runAgent(
 
             // Continue the conversation with the tool results
             chatResponse = await model.sendRequest(
-                messages,
+                workingMessages,
                 { tools: availableTools },
                 token
             );

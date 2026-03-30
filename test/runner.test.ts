@@ -12,6 +12,7 @@ import * as os from 'os';
 const vscode = require('vscode');
 const runnerModule = require('../src/agents/runner');
 const { loadSkill } = runnerModule;
+import { notCancelled, makeChatResponseStream } from './helpers/testHelpers';
 
 // ── loadSkill ─────────────────────────────────────────────────────────────────
 
@@ -43,19 +44,6 @@ describe('loadSkill', () => {
 });
 
 // ── runAgent ──────────────────────────────────────────────────────────────────
-
-const notCancelled = { isCancellationRequested: false };
-
-function makeChatResponseStream() {
-    const markdownChunks: string[] = [];
-    const progressMessages: string[] = [];
-    return {
-        markdown(text: string) { markdownChunks.push(text); },
-        progress(msg: string) { progressMessages.push(msg); },
-        markdownChunks,
-        progressMessages,
-    };
-}
 
 describe('runAgent', () => {
     function makeTextOnlyModel(text: string) {
@@ -122,6 +110,40 @@ describe('runAgent', () => {
 
         expect(result).to.equal('Final answer after tool.');
         expect(callCount).to.equal(2);
+    });
+
+    it('does not mutate the messages argument', async () => {
+        const toolCall = new vscode.LanguageModelToolCallPart('id-mut', 'scad_renderer_render', {});
+
+        let callCount = 0;
+        const model = {
+            async sendRequest() {
+                callCount++;
+                if (callCount === 1) {
+                    return {
+                        stream: (async function* () { yield toolCall; })(),
+                    };
+                }
+                return {
+                    stream: (async function* () {
+                        yield new vscode.LanguageModelTextPart('Done.');
+                    })(),
+                };
+            },
+        };
+
+        const originalInvoke = vscode.lm.invokeTool;
+        vscode.lm.invokeTool = async () => ({ content: [{ text: 'ok' }] });
+
+        const messages = [vscode.LanguageModelChatMessage.User('Hello')];
+        const originalLength = messages.length;
+
+        const stream = makeChatResponseStream();
+        await runnerModule.runAgent(model, messages, stream, notCancelled);
+
+        vscode.lm.invokeTool = originalInvoke;
+
+        expect(messages.length).to.equal(originalLength);
     });
 
     it('returns empty string and writes error markdown when model throws', async () => {

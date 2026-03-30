@@ -231,6 +231,12 @@
     "ts-node": "^10.9.2",
     "typescript": "^5.4.5"
   },
+  "c8": {
+    "lines": 80,
+    "branches": 70,
+    "functions": 80,
+    "statements": 80
+  },
   "dependencies": {
     "three": "^0.183.2",
     "which": "^4.0.0"

@@ -5,6 +5,7 @@
  * runAgent is patched on the live runnerModule export object.
  */
 import { expect } from 'chai';
+import { notCancelled, makeChatResponseStream } from './helpers/testHelpers';
 
 const vscode = require('vscode');
 const runnerModule = require('../src/agents/runner');
@@ -17,19 +18,6 @@ function makeDecisionText(action: string, brief?: string): string {
     if (brief) { lines.push(`Brief: ${brief}`); }
     lines.push('ORCHESTRATOR_DECISION_END');
     return lines.join('\n');
-}
-
-const notCancelled = { isCancellationRequested: false };
-
-function makeChatResponseStream() {
-    const markdownChunks: string[] = [];
-    const progressMessages: string[] = [];
-    return {
-        markdown(text: string) { markdownChunks.push(text); },
-        progress(msg: string) { progressMessages.push(msg); },
-        markdownChunks,
-        progressMessages,
-    };
 }
 
 function makeModel(): any {
