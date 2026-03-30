@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
 import { ScadRunner } from './scadRunner';
+import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from './shared/messages';
 
 export type ParameterValue = string | number | boolean;
 
@@ -81,7 +82,7 @@ export class PreviewPanel {
                 clearTimeout(timeout);
                 resolve(image);
             };
-            this._panel.webview.postMessage({ command: 'capturePreview' });
+            this._panel.webview.postMessage({ command: 'capturePreview' } satisfies ExtensionToWebviewMessage);
         });
     }
 
@@ -93,7 +94,7 @@ export class PreviewPanel {
         this._update();
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
 
-        this._panel.webview.onDidReceiveMessage(message => {
+        this._panel.webview.onDidReceiveMessage((message: WebviewToExtensionMessage) => {
             switch (message.command) {
                 case 'parameterChanged':
                     this._parameterOverrides[message.name] = message.value;
