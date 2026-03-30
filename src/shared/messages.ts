@@ -1,6 +1,4 @@
-import type { ParameterValue } from '../PreviewPanel';
-
-export type { ParameterValue };
+export type ParameterValue = string | number | boolean;
 
 export interface ScadParameter {
     name: string;

@@ -3,9 +3,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
 import { ScadRunner } from './scadRunner';
-import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from './shared/messages';
-
-export type ParameterValue = string | number | boolean;
+import type { ExtensionToWebviewMessage, ParameterValue, WebviewToExtensionMessage } from './shared/messages';
 
 export class PreviewPanel {
     public static panels: Map<string, PreviewPanel> = new Map();
@@ -142,17 +140,17 @@ export class PreviewPanel {
             const runner = new ScadRunner(this.execPath);
             const data = await runner.render(tmpFile, this._parameterOverrides);
             
-            this._panel.webview.postMessage({ 
-                command: 'updateSTL', 
-                data: data.stlBuffer, 
+            this._panel.webview.postMessage({
+                command: 'updateSTL',
+                data: data.stlBuffer,
                 parameters: data.parameters,
                 overrides: this._parameterOverrides
-            });
+            } satisfies ExtensionToWebviewMessage);
             this.lastLogs = data.stderr || data.stdout;
             return { success: true };
         } catch (err: any) {
             const errMsg = err?.message ?? String(err);
-            this._panel.webview.postMessage({ command: 'error', message: errMsg });
+            this._panel.webview.postMessage({ command: 'error', message: errMsg } satisfies ExtensionToWebviewMessage);
             this.lastLogs = errMsg;
             return { success: false, error: errMsg };
         } finally {
@@ -167,18 +165,18 @@ export class PreviewPanel {
             const runner = new ScadRunner(execPath);
             const data = await runner.render(documentUri.fsPath, this._parameterOverrides);
             
-            this._panel.webview.postMessage({ 
-                command: 'updateSTL', 
-                data: data.stlBuffer, 
+            this._panel.webview.postMessage({
+                command: 'updateSTL',
+                data: data.stlBuffer,
                 parameters: data.parameters,
                 overrides: this._parameterOverrides
-            });
+            } satisfies ExtensionToWebviewMessage);
             this.lastLogs = data.stderr || data.stdout;
             return { success: true };
         } catch (err: any) {
             const errMsg = err?.message ?? String(err);
             console.error('Rendering failed:', errMsg);
-            this._panel.webview.postMessage({ command: 'error', message: errMsg });
+            this._panel.webview.postMessage({ command: 'error', message: errMsg } satisfies ExtensionToWebviewMessage);
             this.lastLogs = errMsg;
             
             PreviewPanel.outputChannel.appendLine(`[${new Date().toLocaleTimeString()}] Render Error for ${documentUri.fsPath}:`);
