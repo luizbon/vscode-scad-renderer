@@ -1,5 +1,3 @@
 {
-  "recommendations": [
-    "leathong.openscad-language-support"
-  ]
+  "recommendations": ["leathong.openscad-language-support"]
 }
