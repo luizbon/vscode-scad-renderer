@@ -46,6 +46,7 @@ describe('buildOrchestratorMessages', () => {
             currentCode: 'cube([10,10,10]);',
             agentReports: [],
             trigger: 'initial',
+            changeLog: [],
         };
         const msgs = buildOrchestratorMessages(extensionUri, ctx);
         expect(msgs).to.have.length(2);
@@ -60,6 +61,7 @@ describe('buildOrchestratorMessages', () => {
             currentCode: '',
             agentReports: [],
             trigger: 'initial',
+            changeLog: [],
         };
         const msgs = buildOrchestratorMessages(extensionUri, ctx);
         expect(msgs[1].content).to.include('Make a cylindrical vase');
@@ -72,6 +74,7 @@ describe('buildOrchestratorMessages', () => {
             currentCode: '',
             agentReports: [],
             trigger: 'initial',
+            changeLog: [],
         };
         const msgs = buildOrchestratorMessages(extensionUri, ctx);
         expect(msgs[0].content).to.equal('SKILL:scad-orchestrator');
@@ -84,6 +87,7 @@ describe('buildOrchestratorMessages', () => {
             currentCode: 'cube([1,1,1]);',
             agentReports: ['Report A', 'Report B'],
             trigger: 'after-coder',
+            changeLog: [],
         };
         const msgs = buildOrchestratorMessages(extensionUri, ctx);
         expect(msgs[1].content).to.include('Report A');
@@ -107,20 +111,22 @@ describe('buildCoderMessages', () => {
         expect(msgs[1].content).to.include('existing code here');
     });
 
-    it('uses generate instruction when no fix brief is provided', () => {
+    it('includes the design brief when no fix brief is provided', () => {
         const msgs = buildCoderMessages(extensionUri, 'Make a lid');
-        expect(msgs[1].content).to.include('Generate a complete OpenSCAD script');
+        expect(msgs[1].content).to.include('Make a lid');
+        expect(msgs[1].content).to.include('CHANGE_HISTORY');
     });
 });
 
 // ── buildDebuggerMessages ─────────────────────────────────────────────────────
 
 describe('buildDebuggerMessages', () => {
-    it('without renderLogs: returns simple diagnose instruction', () => {
+    it('without renderLogs: includes source code and change history', () => {
         const msgs = buildDebuggerMessages(extensionUri, 'cube([10,10,10]);');
         expect(msgs).to.have.length(2);
         expect(msgs[0].content).to.equal('SKILL:scad-debugger');
-        expect(msgs[1].content).to.include('Diagnose');
+        expect(msgs[1].content).to.include('cube([10,10,10]);');
+        expect(msgs[1].content).to.include('CHANGE_HISTORY');
         expect(msgs[1].content).to.not.include('Render Logs');
     });
 

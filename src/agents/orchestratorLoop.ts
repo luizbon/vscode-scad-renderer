@@ -5,6 +5,7 @@ import {
     stripSentinelBlocks,
     OrchestratorContext,
     OrchestratorDecision,
+    ChangeLogEntry,
 } from './reportParsers';
 
 /**
@@ -36,13 +37,13 @@ export interface OrchestratorLoopConfig {
     toolInvocationToken?: vscode.ChatParticipantToolToken;
     /** Maximum loop iterations (default: 10). */
     maxIterations?: number;
-    /** Per-action handler callbacks.  Each receives the brief from the decision. */
+    /** Per-action handler callbacks. Each receives the brief and the current change log. */
     handlers: {
-        CALL_CODER?: (brief: string) => Promise<void>;
-        CALL_REVIEWER?: (brief: string) => Promise<void>;
-        CALL_QA?: (brief: string) => Promise<void>;
-        CALL_DEBUGGER?: (brief: string) => Promise<void>;
-        CALL_DESIGNER?: (brief: string) => Promise<void>;
+        CALL_CODER?: (brief: string, changeLog: ChangeLogEntry[]) => Promise<string>;
+        CALL_REVIEWER?: (brief: string, changeLog: ChangeLogEntry[]) => Promise<string>;
+        CALL_QA?: (brief: string, changeLog: ChangeLogEntry[]) => Promise<string>;
+        CALL_DEBUGGER?: (brief: string, changeLog: ChangeLogEntry[]) => Promise<string>;
+        CALL_DESIGNER?: (brief: string, changeLog: ChangeLogEntry[]) => Promise<string>;
     };
     /**
      * Called at the start of each iteration to rebuild orchestrator messages
@@ -90,13 +91,14 @@ export async function runOrchestratorLoop(
     let currentContext = config.context;
     let iterations = 0;
     let finalDecision: OrchestratorDecision | undefined;
+    const changeLog: ChangeLogEntry[] = [...(config.context.changeLog ?? [])];
 
     while (!token.isCancellationRequested && iterations < maxIterations) {
         iterations++;
 
         response.progress(`🛸 Orchestrator deciding… (step ${iterations})`);
 
-        const messages = config.buildOrchestratorMessages(currentContext);
+        const messages = config.buildOrchestratorMessages({ ...currentContext, changeLog });
         const raw = await runAgent(model, messages, createSilentStream(), token, undefined, '');
         const decision = parseOrchestratorDecision(raw);
 
@@ -120,11 +122,19 @@ export async function runOrchestratorLoop(
         const handler = handlers[decision.action];
 
         if (!handler) {
-            response.markdown(`\n\n⚠️ No handler registered for orchestrator action: ${decision.action}. Stopping.`);
+            response.markdown(`⚠️ No handler registered for orchestrator action: ${decision.action}. Stopping.`);
             break;
         }
 
-        await handler(brief);
+        const handlerSummary = await handler(brief, changeLog);
+
+        // Record this step in the shared change log
+        changeLog.push({
+            step: iterations,
+            agent: decision.action,
+            summary: handlerSummary || brief,
+            outcome: 'success',
+        });
 
         if (config.onAfterHandler) {
             currentContext = await config.onAfterHandler(decision, iterations);

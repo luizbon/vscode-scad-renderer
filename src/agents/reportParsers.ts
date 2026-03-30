@@ -194,6 +194,14 @@ export type OrchestratorAction =
     | 'DONE'
     | 'UNKNOWN';
 
+/** A single entry in the session change log. */
+export interface ChangeLogEntry {
+    step: number;
+    agent: string;
+    summary: string;
+    outcome: 'success' | 'failure' | 'pending';
+}
+
 /** Context provided to the orchestrator LLM to make the next-action decision. */
 export interface OrchestratorContext {
     fileDescription: string;
@@ -201,6 +209,8 @@ export interface OrchestratorContext {
     trigger: string;
     agentReports: string[];
     currentCode?: string;
+    /** Ordered log of changes made this session — prevents regressions across loop iterations. */
+    changeLog: ChangeLogEntry[];
 }
 
 /** The orchestrator's next-step decision, parsed from its structured output. */

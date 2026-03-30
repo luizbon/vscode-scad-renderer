@@ -1,6 +1,15 @@
 import * as vscode from 'vscode';
 import { loadSkill } from './runner';
-import { OrchestratorContext } from './reportParsers';
+import { OrchestratorContext, ChangeLogEntry } from './reportParsers';
+
+function formatChangeLog(changeLog: ChangeLogEntry[]): string {
+    if (changeLog.length === 0) {
+        return 'No changes have been made yet this session.';
+    }
+    return changeLog.map(e =>
+        `- Step ${e.step} [${e.agent}] (${e.outcome}): ${e.summary}`
+    ).join('\n');
+}
 
 /**
  * Builds messages for the orchestrator LLM.
@@ -13,6 +22,7 @@ export function buildOrchestratorMessages(
     const contextBlock = [
         `**File:** ${ctx.fileDescription}`,
         `**Design Brief / Goal:**\n${ctx.designBrief}`,
+        `**Change History (Session Memory):**\n${formatChangeLog(ctx.changeLog)}`,
         ctx.currentCode ? `**Current SCAD Code:**\n\`\`\`openscad\n${ctx.currentCode}\n\`\`\`` : '',
         ctx.agentReports.length > 0
             ? `**Subagent Reports This Session:**\n\n${ctx.agentReports.join('\n\n---\n\n')}`
@@ -37,12 +47,14 @@ export function buildCoderMessages(
     extensionUri: vscode.Uri,
     designBrief: string,
     existingCode?: string,
-    fixBrief?: string
+    fixBrief?: string,
+    changeLog: ChangeLogEntry[] = []
 ): vscode.LanguageModelChatMessage[] {
     const skill = loadSkill(extensionUri, 'scad-coder');
+    const changeLogBlock = `**CHANGE_HISTORY (read before writing anything):**\n${formatChangeLog(changeLog)}`;
     const instruction = fixBrief
-        ? `Fix the following issue:\n\n${fixBrief}\n\nExisting code:\n\`\`\`openscad\n${existingCode ?? ''}\n\`\`\`\n\nDesign Brief (for reference):\n${designBrief}`
-        : `Generate a complete OpenSCAD script based on the following design brief:\n\n${designBrief}`;
+        ? `${changeLogBlock}\n\n**Design Brief (for reference):**\n${designBrief}\n\n**What needs to change:**\n${fixBrief}\n\n**Current code:**\n\`\`\`openscad\n${existingCode ?? ''}\n\`\`\``
+        : `${changeLogBlock}\n\n**Design Brief:**\n${designBrief}${existingCode ? `\n\n**Existing code (starting point):**\n\`\`\`openscad\n${existingCode}\n\`\`\`` : ''}`;
     return [
         vscode.LanguageModelChatMessage.User(skill),
         vscode.LanguageModelChatMessage.User(instruction),
@@ -55,13 +67,14 @@ export function buildCoderMessages(
 export function buildReviewerMessages(
     extensionUri: vscode.Uri,
     scadCode: string,
-    designBrief: string
+    designBrief: string,
+    changeLog: ChangeLogEntry[] = []
 ): vscode.LanguageModelChatMessage[] {
     const skill = loadSkill(extensionUri, 'scad-reviewer');
     return [
         vscode.LanguageModelChatMessage.User(skill),
         vscode.LanguageModelChatMessage.User(
-            `Review the following OpenSCAD script against the design brief.\n\n` +
+            `**CHANGE_HISTORY (issues already addressed — do not raise them again):**\n${formatChangeLog(changeLog)}\n\n` +
             `**Design Brief:**\n${designBrief}\n\n` +
             `**OpenSCAD Code:**\n\`\`\`openscad\n${scadCode}\n\`\`\``
         ),
@@ -74,13 +87,14 @@ export function buildReviewerMessages(
 export function buildQaMessages(
     extensionUri: vscode.Uri,
     scadCode: string,
-    designBrief: string
+    designBrief: string,
+    changeLog: ChangeLogEntry[] = []
 ): vscode.LanguageModelChatMessage[] {
     const skill = loadSkill(extensionUri, 'scad-qa');
     return [
         vscode.LanguageModelChatMessage.User(skill),
         vscode.LanguageModelChatMessage.User(
-            `Perform final QA on the following OpenSCAD model.\n\n` +
+            `**CHANGE_HISTORY (improvements already made — do not request them again):**\n${formatChangeLog(changeLog)}\n\n` +
             `**Design Brief:**\n${designBrief}\n\n` +
             `**OpenSCAD Code:**\n\`\`\`openscad\n${scadCode}\n\`\`\``
         ),
@@ -96,14 +110,14 @@ export function buildQaMessages(
 export function buildDebuggerMessages(
     extensionUri: vscode.Uri,
     scadCode: string,
-    renderLogs?: string
+    renderLogs?: string,
+    changeLog: ChangeLogEntry[] = []
 ): vscode.LanguageModelChatMessage[] {
     const skill = loadSkill(extensionUri, 'scad-debugger');
+    const changeLogBlock = `**CHANGE_HISTORY (previous fix attempts — avoid repeating them):**\n${formatChangeLog(changeLog)}\n\n`;
     const userText = renderLogs
-        ? `Diagnose the following OpenSCAD file.\n\n` +
-          `**Render Logs:**\n${renderLogs}\n\n` +
-          `**Source Code:**\n\`\`\`openscad\n${scadCode}\n\`\`\``
-        : `Diagnose the following OpenSCAD code.\n\n\`\`\`openscad\n${scadCode}\n\`\`\``;
+        ? `${changeLogBlock}**Render Logs:**\n${renderLogs}\n\n**Source Code:**\n\`\`\`openscad\n${scadCode}\n\`\`\``
+        : `${changeLogBlock}**Source Code:**\n\`\`\`openscad\n${scadCode}\n\`\`\``;
     return [
         vscode.LanguageModelChatMessage.User(skill),
         vscode.LanguageModelChatMessage.User(userText),

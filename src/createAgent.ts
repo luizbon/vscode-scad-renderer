@@ -244,6 +244,12 @@ export async function handleCreateRequest(
             currentCode: await readFile(uri),
             agentReports,
             trigger,
+            changeLog: [{
+                step: 0,
+                agent: 'CALL_CODER',
+                summary: 'Initial code generation from design brief',
+                outcome: 'success',
+            }],
         },
         response,
         token,
@@ -261,48 +267,52 @@ export async function handleCreateRequest(
             };
         },
         handlers: {
-            CALL_CODER: async (brief) => {
+            CALL_CODER: async (brief, changeLog) => {
                 response.progress('⚙️ Coder is applying fixes…');
                 const existingCode = await readFile(uri);
-                const msgs = buildCoderMessages(extensionUri, designBriefText, existingCode, brief);
+                const msgs = buildCoderMessages(extensionUri, designBriefText, existingCode, brief, changeLog);
                 const raw = await runAgent(model(request), msgs, createSilentStream(), token, toolInvocationToken, '');
                 const visible = stripSentinelBlocks(raw);
                 if (visible) { response.markdown(visible + '\n\n'); }
                 agentReports.push(`### Coder Turn\nBrief: ${brief}`);
                 trigger = `Coder completed its turn with brief: "${brief}"`;
+                return `Applied fix: ${brief}`;
             },
-            CALL_REVIEWER: async (brief) => {
+            CALL_REVIEWER: async (brief, changeLog) => {
                 response.progress('🕵️ Reviewer is auditing…');
                 const code = await readFile(uri);
-                const msgs = buildReviewerMessages(extensionUri, code, designBriefText);
+                const msgs = buildReviewerMessages(extensionUri, code, designBriefText, changeLog);
                 const raw = await runAgent(model(request), msgs, createSilentStream(), token, undefined, '');
                 const report = parseReviewReport(raw);
                 const visible = stripSentinelBlocks(raw);
                 if (visible) { response.markdown(visible + '\n\n'); }
                 agentReports.push(`### Reviewer Report\n${report.raw}`);
                 trigger = `Reviewer returned status: "${report.status}". Change Request: "${report.changeRequest ?? 'none'}"`;
+                return `Reviewer: ${report.status}${report.changeRequest ? ` — ${report.changeRequest}` : ''}`;
             },
-            CALL_QA: async (brief) => {
+            CALL_QA: async (brief, changeLog) => {
                 response.progress('🛡️ QA is verifying…');
                 const code = await readFile(uri);
-                const msgs = buildQaMessages(extensionUri, code, designBriefText);
+                const msgs = buildQaMessages(extensionUri, code, designBriefText, changeLog);
                 const raw = await runAgent(model(request), msgs, createSilentStream(), token, toolInvocationToken, '');
                 const report = parseQaReport(raw);
                 const visible = stripSentinelBlocks(raw);
                 if (visible) { response.markdown(visible + '\n\n'); }
                 agentReports.push(`### QA Report\n${report.raw}`);
                 trigger = `QA returned result: "${report.result}". Change Request: "${report.changeRequest ?? 'none'}"`;
+                return `QA: ${report.result}${report.changeRequest ? ` — ${report.changeRequest}` : ''}`;
             },
-            CALL_DEBUGGER: async (brief) => {
+            CALL_DEBUGGER: async (brief, changeLog) => {
                 response.progress('🩺 Debugger is diagnosing…');
                 const code = await readFile(uri);
-                const msgs = buildDebuggerMessages(extensionUri, code);
+                const msgs = buildDebuggerMessages(extensionUri, code, undefined, changeLog);
                 const raw = await runAgent(model(request), msgs, createSilentStream(), token, toolInvocationToken, '');
                 const report = parseDiagnosticReport(raw);
                 const visible = stripSentinelBlocks(raw);
                 if (visible) { response.markdown(visible + '\n\n'); }
                 agentReports.push(`### Debugger Report\n${report.raw}`);
                 trigger = `Debugger returned. Root cause: "${report.rootCause ?? 'unknown'}". Fix guidance: "${report.fixGuidance ?? 'none'}"`;
+                return `Debugger: root cause — ${report.rootCause ?? 'unknown'}`;
             },
         },
     });
