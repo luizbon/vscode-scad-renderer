@@ -5,6 +5,16 @@ import * as fs from 'fs';
 import { ScadRunner } from './scadRunner';
 import type { ExtensionToWebviewMessage, ParameterValue, WebviewToExtensionMessage } from './shared/messages';
 
+/**
+ * Convert a Node.js Buffer to a standalone ArrayBuffer.
+ * Buffer may share a pooled ArrayBuffer with a non-zero byteOffset, so we
+ * slice to get an independent copy. The cast to ArrayBuffer is safe because
+ * slice() on an ArrayBufferLike always produces a plain ArrayBuffer at runtime.
+ */
+function bufferToArrayBuffer(buf: Buffer): ArrayBuffer {
+    return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
+}
+
 export class PreviewPanel {
     public static panels: Map<string, PreviewPanel> = new Map();
     public static readonly viewType = 'scadRenderer';
@@ -139,10 +149,10 @@ export class PreviewPanel {
             await fs.promises.writeFile(tmpFile, code, 'utf-8');
             const runner = new ScadRunner(this.execPath);
             const data = await runner.render(tmpFile, this._parameterOverrides);
-            
+
             this._panel.webview.postMessage({
                 command: 'updateSTL',
-                data: data.stlBuffer,
+                data: bufferToArrayBuffer(data.stlBuffer),
                 parameters: data.parameters,
                 overrides: this._parameterOverrides
             } satisfies ExtensionToWebviewMessage);
@@ -167,7 +177,7 @@ export class PreviewPanel {
             
             this._panel.webview.postMessage({
                 command: 'updateSTL',
-                data: data.stlBuffer,
+                data: bufferToArrayBuffer(data.stlBuffer),
                 parameters: data.parameters,
                 overrides: this._parameterOverrides
             } satisfies ExtensionToWebviewMessage);

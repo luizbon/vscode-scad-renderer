@@ -25,7 +25,7 @@ export class MessageHandler {
     private handleMessage(message: ExtensionToWebviewMessage) {
         switch (message.command) {
             case 'updateSTL': {
-                const arr = message.data as ArrayBuffer;
+                const arr = message.data;
                 if (arr && arr.byteLength > 0) {
                     this.viewer.loadStl(arr);
                 }
