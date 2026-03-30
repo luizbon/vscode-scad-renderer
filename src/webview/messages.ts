@@ -1,4 +1,4 @@
-import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '../shared/messages';
+import type { ExtensionToWebviewMessage, ParameterValue, WebviewToExtensionMessage } from '../shared/messages';
 import type { Viewer } from './viewer';
 import type { Customizer } from './customizer';
 
@@ -46,11 +46,11 @@ export class MessageHandler {
         }
     }
 
-    public sendParameterChanged(name: string, value: unknown, instant: boolean) {
+    public sendParameterChanged(name: string, value: ParameterValue, instant: boolean) {
         if (this.debounceTimer) { clearTimeout(this.debounceTimer); }
 
         const send = () => {
-            this.vscode.postMessage({ command: 'parameterChanged', name, value: value as import('../shared/messages').ParameterValue });
+            this.vscode.postMessage({ command: 'parameterChanged', name, value });
         };
 
         if (instant) {

@@ -95,7 +95,7 @@ export class PreviewPanel {
         this._panel.webview.onDidReceiveMessage((message: WebviewToExtensionMessage) => {
             switch (message.command) {
                 case 'parameterChanged':
-                    this._parameterOverrides[message.name] = message.value;
+                    this._parameterOverrides = { ...this._parameterOverrides, [message.name]: message.value };
                     if (this.execPath) {
                         this.renderScad(this.execPath, this.documentUri);
                     }

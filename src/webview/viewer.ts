@@ -2,9 +2,6 @@ import * as THREE from 'three';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// OpenSCAD uses Z as up, Three.js defaults to Y as up.
-THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
-
 export class Viewer {
     private scene: THREE.Scene;
     private camera: THREE.PerspectiveCamera;
@@ -14,6 +11,9 @@ export class Viewer {
     private stlLoader = new STLLoader();
 
     constructor() {
+        // OpenSCAD uses Z as up, Three.js defaults to Y as up.
+        THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
+
         // SCENE
         this.scene = new THREE.Scene();
 
