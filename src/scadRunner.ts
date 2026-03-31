@@ -31,31 +31,24 @@ export class ScadRunner {
     public async extractParameters(inputScadPath: string, outputTplDir: string): Promise<any[]> {
         const tmpFile = path.join(outputTplDir, `vscode-scad-params-${Date.now()}.json`);
         return new Promise((resolve) => {
-            // Use --info parameters for modern versions, but fallback for older ones
-            // 2021.01 doesn't support --info=parameters, but it's okay to try
             cp.execFile(this.executablePath, [
-                inputScadPath,
                 '-o', tmpFile,
-                '--info', 'parameters'
-            ], (error, stdout, stderr) => {
+                '--export-format', 'param',
+                inputScadPath,
+            ], () => {
                 if (!fs.existsSync(tmpFile)) {
-                    // Fail silently for extraction, it's not critical for 3D preview
                     resolve([]);
                     return;
                 }
 
                 fs.readFile(tmpFile, 'utf8', (err, data) => {
-                    // Try to clean up anyway
                     fs.unlink(tmpFile, () => { });
 
-                    if (err) {
-                        resolve([]);
-                        return;
-                    }
+                    if (err) { resolve([]); return; }
                     try {
                         const parsed = JSON.parse(data);
                         resolve(parsed.parameters || []);
-                    } catch (e) {
+                    } catch {
                         resolve([]);
                     }
                 });
@@ -68,15 +61,15 @@ export class ScadRunner {
         outputTplDir: string,
         overrides?: Record<string, string | number | boolean>
     ): Promise<{ stlBuffer: Buffer, tmpFile: string, stdout: string, stderr: string }> {
-        const tmpFile = path.join(outputTplDir, `vscode-scad-tmp-${Date.now()}.stl`);
+        const tmpFile = path.join(outputTplDir, `vscode-scad-tmp-${Date.now()}.3mf`);
 
-        // Check capabilities to avoid using unsupported flags
+        // 3MF preserves color() calls from OpenSCAD code.
+        // Use manifold backend when available for faster, more reliable geometry.
         const hasManifold = await this.supportsManifold();
-        const args = ['-o', tmpFile];
+        const args = ['-o', tmpFile, '--export-format', '3mf'];
 
         if (hasManifold) {
             args.push('--backend=manifold');
-            args.push('--export-format', 'binstl');
         }
 
         if (overrides) {
@@ -108,24 +101,61 @@ export class ScadRunner {
         });
     }
 
+    public async exportTo3mf(
+        inputScadPath: string,
+        outputPath: string,
+        overrides?: Record<string, string | number | boolean>
+    ): Promise<void> {
+        const hasManifold = await this.supportsManifold();
+        // material-type=color → m:colorgroup extension (Materials & Properties spec),
+        // which slicers (PrusaSlicer, Bambu Studio, Cura) read for display colours.
+        // color-mode=model ensures per-face colour assignments are included (not just the default).
+        const args = [
+            '-o', outputPath,
+            '--export-format', '3mf',
+            '-O', 'export-3mf/material-type=color',
+            '-O', 'export-3mf/color-mode=model',
+        ];
+
+        if (hasManifold) { args.push('--backend=manifold'); }
+
+        if (overrides) {
+            for (const [key, value] of Object.entries(overrides)) {
+                const argValue = typeof value === 'string' ? `"${value}"` : value.toString();
+                args.push('-D', `${key}=${argValue}`);
+            }
+        }
+
+        args.push(inputScadPath);
+
+        return new Promise((resolve, reject) => {
+            cp.execFile(this.executablePath, args, (error, _stdout, stderr) => {
+                if (error) {
+                    reject(new Error(stderr ? stderr.trim() : error.message));
+                } else {
+                    resolve();
+                }
+            });
+        });
+    }
+
     public async render(
         inputScadPath: string,
         overrides?: Record<string, string | number | boolean>
-    ): Promise<{ stlBuffer: Buffer; parameters: any[]; stdout: string; stderr: string }> {
+    ): Promise<{ modelBuffer: Buffer; parameters: any[]; stdout: string; stderr: string }> {
         const tmpDir = os.tmpdir();
-        const [stlResult, parameters] = await Promise.all([
+        const [modelResult, parameters] = await Promise.all([
             this.renderStl(inputScadPath, tmpDir, overrides),
             this.extractParameters(inputScadPath, tmpDir)
         ]);
 
-        // Clean up the temp STL file
-        fs.unlink(stlResult.tmpFile, () => { });
+        fs.unlink(modelResult.tmpFile, () => { });
 
         return {
-            stlBuffer: stlResult.stlBuffer,
-            parameters: parameters,
-            stdout: stlResult.stdout,
-            stderr: stlResult.stderr
+            modelBuffer: modelResult.stlBuffer,
+            parameters,
+            stdout: modelResult.stdout,
+            stderr: modelResult.stderr
         };
     }
 }

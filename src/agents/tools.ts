@@ -126,27 +126,28 @@ export function registerScadTools(context: vscode.ExtensionContext) {
                 };
             }
 
-            // Save so the OpenSCAD renderer picks up the changes from disk.
-            await document.save();
+            // Do NOT save — leave the document dirty so the user can review the
+            // diff (blue change bars in the gutter), then press Ctrl+S to accept
+            // or Ctrl+Z to undo and reject the AI's changes.
 
-            // Re-render the saved file and reveal the preview panel.
-            const execPath = panel.execPath;
-            if (!execPath) {
-                return {
-                    content: [new vscode.LanguageModelTextPart('Edit saved but OpenSCAD executable path is not configured — skipping render.')]
-                };
-            }
-
-            const result = await panel.renderScad(execPath, documentUri);
+            // Render from the in-memory code directly so the preview updates
+            // immediately without requiring a save first.
+            const result = await panel.renderScadContent(input.code);
             panel.reveal();
 
             if (result.success) {
                 return {
-                    content: [new vscode.LanguageModelTextPart('Code updated and rendered successfully. Changes are tracked in the editor.')]
+                    content: [new vscode.LanguageModelTextPart(
+                        'Code updated. The preview shows the new result. ' +
+                        'Review the changes (blue bars in the gutter), then Save (Ctrl+S) to accept or Undo (Ctrl+Z) to reject.'
+                    )]
                 };
             } else {
                 return {
-                    content: [new vscode.LanguageModelTextPart(`Code saved but rendering failed: ${result.error}`)]
+                    content: [new vscode.LanguageModelTextPart(
+                        `Code applied to editor but rendering failed: ${result.error}\n` +
+                        'Save (Ctrl+S) to accept or Undo (Ctrl+Z) to reject.'
+                    )]
                 };
             }
         }

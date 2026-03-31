@@ -93,10 +93,12 @@ export async function runOrchestratorLoop(
     let finalDecision: OrchestratorDecision | undefined;
     const changeLog: ChangeLogEntry[] = [...(config.context.changeLog ?? [])];
 
+    response.progress('💡 Tip: press **Stop** (⬛) in the chat toolbar to cancel at any time.');
+
     while (!token.isCancellationRequested && iterations < maxIterations) {
         iterations++;
 
-        response.progress(`🛸 Orchestrator deciding… (step ${iterations})`);
+        response.progress(`🛸 Orchestrator deciding… (step ${iterations} of ${maxIterations})`);
 
         const messages = config.buildOrchestratorMessages({ ...currentContext, changeLog });
         const raw = await runAgent(model, messages, createSilentStream(), token, undefined, '');
@@ -127,6 +129,8 @@ export async function runOrchestratorLoop(
         }
 
         const handlerSummary = await handler(brief, changeLog);
+
+        if (token.isCancellationRequested) { break; }
 
         // Record this step in the shared change log
         changeLog.push({

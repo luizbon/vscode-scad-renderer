@@ -47,9 +47,19 @@
     "languages": [
       {
         "id": "scad",
-        "extensions": [
-          ".scad"
-        ]
+        "aliases": ["OpenSCAD", "scad"],
+        "extensions": [".scad"],
+        "icon": {
+          "light": "./media/scad-file-icon.png",
+          "dark": "./media/scad-file-icon.png"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "scad",
+        "scopeName": "source.scad",
+        "path": "./syntaxes/scad.tmLanguage.json"
       }
     ],
     "chatParticipants": [
@@ -57,7 +67,7 @@
         "id": "scad.chat",
         "name": "scad",
         "description": "AI assistant for OpenSCAD 3D printing. Use /optimize, /parametric, or /printability.",
-        "isSticky": true,
+        "isSticky": false,
         "commands": [
           {
             "name": "optimize",
@@ -85,48 +95,64 @@
     "commands": [
       {
         "command": "scad-renderer.preview",
-        "title": "SCAD: Show 3D Preview"
+        "title": "Open 3D Preview",
+        "category": "SCAD",
+        "icon": "$(eye)"
       },
       {
         "command": "scad-renderer.ai.optimize",
         "title": "Optimise for 3D Printing",
-        "category": "SCAD AI"
+        "category": "SCAD AI",
+        "icon": "$(wrench)"
       },
       {
         "command": "scad-renderer.ai.parametric",
         "title": "Make Parametric",
-        "category": "SCAD AI"
+        "category": "SCAD AI",
+        "icon": "$(symbol-parameter)"
       },
       {
         "command": "scad-renderer.ai.printability",
-        "title": "Identify Printability Issues",
-        "category": "SCAD AI"
+        "title": "Check Printability",
+        "category": "SCAD AI",
+        "icon": "$(checklist)"
       },
       {
         "command": "scad-renderer.ai.debug",
-        "title": "Troubleshoot Rendering Error",
-        "category": "SCAD AI"
+        "title": "Debug Rendering Error",
+        "category": "SCAD AI",
+        "icon": "$(debug-alt)"
       },
       {
         "command": "scad-renderer.ai.create",
         "title": "Create New 3D Model…",
-        "category": "SCAD AI"
+        "category": "SCAD AI",
+        "icon": "$(add)"
       },
       {
         "command": "scad-renderer.ai.saveGeneratedCode",
         "title": "Save Generated SCAD Code",
-        "category": "SCAD AI"
+        "category": "SCAD AI",
+        "icon": "$(save)"
+      },
+      {
+        "command": "scad-renderer.export3mf",
+        "title": "Export 3MF…",
+        "category": "SCAD",
+        "icon": "$(export)"
       },
       {
         "command": "scad-renderer.reportIssue",
         "title": "Report an Issue",
-        "category": "SCAD"
+        "category": "SCAD",
+        "icon": "$(feedback)"
       }
     ],
     "submenus": [
       {
         "id": "scad-renderer.aiSubmenu",
-        "label": "SCAD AI Assistant"
+        "label": "$(sparkle) SCAD AI Assistant",
+        "icon": "$(sparkle)"
       }
     ],
     "menus": {
@@ -134,48 +160,90 @@
         {
           "command": "scad-renderer.preview",
           "when": "resourceLangId == scad",
-          "group": "navigation"
+          "group": "navigation@1"
+        },
+        {
+          "command": "scad-renderer.export3mf",
+          "when": "resourceLangId == scad",
+          "group": "navigation@2"
+        },
+        {
+          "submenu": "scad-renderer.aiSubmenu",
+          "when": "resourceLangId == scad",
+          "group": "navigation@3"
         }
       ],
       "explorer/context": [
         {
           "command": "scad-renderer.preview",
           "when": "resourceExtname == .scad",
-          "group": "navigation"
+          "group": "1_scad@1"
+        },
+        {
+          "command": "scad-renderer.export3mf",
+          "when": "resourceExtname == .scad",
+          "group": "1_scad@2"
         },
         {
           "submenu": "scad-renderer.aiSubmenu",
           "when": "resourceExtname == .scad",
-          "group": "navigation"
+          "group": "1_scad@3"
         }
       ],
       "editor/context": [
         {
+          "command": "scad-renderer.preview",
+          "when": "resourceLangId == scad",
+          "group": "1_scad@1"
+        },
+        {
+          "command": "scad-renderer.export3mf",
+          "when": "resourceLangId == scad",
+          "group": "1_scad@2"
+        },
+        {
           "submenu": "scad-renderer.aiSubmenu",
           "when": "resourceLangId == scad",
-          "group": "navigation"
+          "group": "1_scad@3"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "scad-renderer.preview",
+          "when": "resourceLangId == scad",
+          "group": "1_scad@1"
+        },
+        {
+          "command": "scad-renderer.export3mf",
+          "when": "resourceLangId == scad",
+          "group": "1_scad@2"
+        },
+        {
+          "submenu": "scad-renderer.aiSubmenu",
+          "when": "resourceLangId == scad",
+          "group": "1_scad@3"
         }
       ],
       "scad-renderer.aiSubmenu": [
         {
           "command": "scad-renderer.ai.create",
-          "group": "0_create"
+          "group": "0_create@1"
         },
         {
           "command": "scad-renderer.ai.debug",
-          "group": "1_ai"
+          "group": "1_ai@1"
         },
         {
           "command": "scad-renderer.ai.optimize",
-          "group": "1_ai"
+          "group": "1_ai@2"
         },
         {
           "command": "scad-renderer.ai.parametric",
-          "group": "1_ai"
+          "group": "1_ai@3"
         },
         {
           "command": "scad-renderer.ai.printability",
-          "group": "1_ai"
+          "group": "1_ai@4"
         }
       ]
     },
@@ -244,9 +312,6 @@
       }
     }
   },
-  "extensionDependencies": [
-    "leathong.openscad-language-support"
-  ],
   "scripts": {
     "vscode:prepublish": "npm run package",
     "compile": "node esbuild.js",

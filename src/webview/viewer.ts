@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+import { ThreeMFLoader } from 'three/addons/loaders/3MFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 // ---------------------------------------------------------------------------
@@ -115,8 +115,8 @@ export class Viewer {
     private activeCamera: THREE.Camera;
     private renderer: THREE.WebGLRenderer;
     private controls: OrbitControls;
-    private currentMesh: THREE.Mesh | null = null;
-    private stlLoader = new STLLoader();
+    private currentGroup: THREE.Group | null = null;
+    private threeMFLoader = new ThreeMFLoader();
     private axesWidget: AxesWidget;
     private gridHelper: THREE.GridHelper | null = null;
 
@@ -260,57 +260,65 @@ export class Viewer {
     // Public API
     // -----------------------------------------------------------------------
 
-    public loadStl(buffer: ArrayBuffer) {
+    public loadModel(buffer: ArrayBuffer) {
         try {
-            const geometry = this.stlLoader.parse(buffer);
+            const group = this.threeMFLoader.parse(buffer);
 
-            const material = new THREE.MeshPhongMaterial({
-                color: 0xf5d44f,
-                specular: 0x111111,
-                shininess: 50,
-                flatShading: true
+            // Apply flat shading and shadows to all meshes; materials come from 3MF
+            group.traverse((obj) => {
+                if (!(obj instanceof THREE.Mesh)) { return; }
+                obj.castShadow = true;
+                obj.receiveShadow = true;
+                const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+                for (const mat of mats) {
+                    if (mat instanceof THREE.MeshPhongMaterial || mat instanceof THREE.MeshStandardMaterial) {
+                        (mat as any).flatShading = true;
+                        mat.needsUpdate = true;
+                    }
+                }
             });
 
-            if (this.currentMesh) {
-                this.scene.remove(this.currentMesh);
-                this.currentMesh.geometry.dispose();
-                (this.currentMesh.material as THREE.Material).dispose();
+            // Remove previous model
+            if (this.currentGroup) {
+                this.scene.remove(this.currentGroup);
+                this.currentGroup.traverse((obj) => {
+                    if (obj instanceof THREE.Mesh) {
+                        obj.geometry.dispose();
+                        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+                        mats.forEach(m => m.dispose());
+                    }
+                });
             }
 
-            this.currentMesh = new THREE.Mesh(geometry, material);
-            this.currentMesh.castShadow = true;
-            this.currentMesh.receiveShadow = true;
+            // Centre X/Y and sit on Z=0
+            const box = new THREE.Box3().setFromObject(group);
+            const center = new THREE.Vector3();
+            box.getCenter(center);
+            group.position.set(-center.x, -center.y, -box.min.z);
 
-            geometry.computeBoundingBox();
-            const box = geometry.boundingBox;
-            if (box) {
-                const center = new THREE.Vector3();
-                box.getCenter(center);
-                geometry.translate(-center.x, -center.y, -center.z);
+            this.currentGroup = group;
+            this.scene.add(group);
 
-                const size = new THREE.Vector3();
-                box.getSize(size);
-                const maxDim = Math.max(size.x, size.y, size.z);
-                const fov = this.persCamera.fov * (Math.PI / 180);
-                const cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2)) * 2.0;
-                this.persCamera.position.set(cameraZ, cameraZ, cameraZ);
-                this.persCamera.lookAt(0, 0, 0);
-                this.controls.target.set(0, 0, 0);
-                this.syncCameras();
+            // Fit camera
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            const maxDim = Math.max(size.x, size.y, size.z);
+            const fov = this.persCamera.fov * (Math.PI / 180);
+            const cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2)) * 2.0;
+            this.persCamera.position.set(cameraZ, cameraZ, cameraZ);
+            this.persCamera.lookAt(0, 0, 0);
+            this.controls.target.set(0, 0, 0);
+            this.syncCameras();
 
-                // Update ortho frustum to fit object
-                const aspect = window.innerWidth / window.innerHeight;
-                const vs = cameraZ * Math.tan(fov / 2) * 2;
-                this.orthoCamera.left = -vs * aspect / 2;
-                this.orthoCamera.right = vs * aspect / 2;
-                this.orthoCamera.top = vs / 2;
-                this.orthoCamera.bottom = -vs / 2;
-                this.orthoCamera.updateProjectionMatrix();
-            }
-
-            this.scene.add(this.currentMesh);
+            const aspect = window.innerWidth / window.innerHeight;
+            const vs = cameraZ * Math.tan(fov / 2) * 2;
+            this.orthoCamera.left = -vs * aspect / 2;
+            this.orthoCamera.right = vs * aspect / 2;
+            this.orthoCamera.top = vs / 2;
+            this.orthoCamera.bottom = -vs / 2;
+            this.orthoCamera.updateProjectionMatrix();
         } catch (e) {
-            console.error('Failed to parse STL arraybuffer:', e);
+            console.error('Failed to parse 3MF buffer:', e);
         }
     }
 
@@ -320,28 +328,30 @@ export class Viewer {
     }
 
     public setRenderMode(mode: 'solid' | 'wireframe' | 'xray') {
-        if (!this.currentMesh) { return; }
-        this.currentMesh.traverse((obj) => {
+        if (!this.currentGroup) { return; }
+        this.currentGroup.traverse((obj) => {
             if (!(obj instanceof THREE.Mesh)) { return; }
-            const mat = obj.material as THREE.MeshPhongMaterial;
-            switch (mode) {
-                case 'wireframe':
-                    mat.wireframe = true;
-                    mat.transparent = false;
-                    mat.opacity = 1.0;
-                    break;
-                case 'xray':
-                    mat.wireframe = false;
-                    mat.transparent = true;
-                    mat.opacity = 0.5;
-                    break;
-                case 'solid':
-                    mat.wireframe = false;
-                    mat.transparent = false;
-                    mat.opacity = 1.0;
-                    break;
+            const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+            for (const mat of mats as THREE.Material[]) {
+                switch (mode) {
+                    case 'wireframe':
+                        (mat as any).wireframe = true;
+                        mat.transparent = false;
+                        mat.opacity = 1.0;
+                        break;
+                    case 'xray':
+                        (mat as any).wireframe = false;
+                        mat.transparent = true;
+                        mat.opacity = 0.5;
+                        break;
+                    case 'solid':
+                        (mat as any).wireframe = false;
+                        mat.transparent = false;
+                        mat.opacity = 1.0;
+                        break;
+                }
+                mat.needsUpdate = true;
             }
-            mat.needsUpdate = true;
         });
     }
 
@@ -360,8 +370,8 @@ export class Viewer {
 
     public setShadows(enabled: boolean) {
         this.renderer.shadowMap.enabled = enabled;
-        if (this.currentMesh) {
-            this.currentMesh.traverse((obj) => {
+        if (this.currentGroup) {
+            this.currentGroup.traverse((obj) => {
                 if (obj instanceof THREE.Mesh) {
                     obj.castShadow = enabled;
                     obj.receiveShadow = enabled;

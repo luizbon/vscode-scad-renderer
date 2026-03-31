@@ -44,13 +44,9 @@ export class PreviewPanel {
 
     public static createOrShow(extensionUri: vscode.Uri, execPath: string, documentUri: vscode.Uri) {
         const key = documentUri.toString();
-        const column = vscode.window.activeTextEditor
-            ? vscode.ViewColumn.Beside
-            : vscode.ViewColumn.One;
-
         const existingPanel = PreviewPanel.panels.get(key);
         if (existingPanel) {
-            existingPanel._panel.reveal(column);
+            existingPanel._panel.reveal(vscode.ViewColumn.Active);
             existingPanel.renderScad(execPath, documentUri);
             return;
         }
@@ -58,7 +54,7 @@ export class PreviewPanel {
         const panel = vscode.window.createWebviewPanel(
             PreviewPanel.viewType,
             'SCAD Preview',
-            column,
+            vscode.ViewColumn.Active,
             {
                 enableScripts: true,
                 localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'dist')]
@@ -116,6 +112,9 @@ export class PreviewPanel {
                         this._captureResolver = undefined;
                     }
                     return;
+                case 'export3mf':
+                    vscode.commands.executeCommand('scad-renderer.export3mf', this.documentUri);
+                    return;
             }
         }, null, this._disposables);
     }
@@ -127,10 +126,22 @@ export class PreviewPanel {
         if (!this.documentUri) {
             return { success: false, error: "No active document." };
         }
-        
+
         try {
-            await vscode.workspace.fs.writeFile(this.documentUri, Buffer.from(code, 'utf-8'));
-            return await this.renderScad(this.execPath!, this.documentUri);
+            // Apply via WorkspaceEdit so the change shows up as a tracked diff
+            // (blue gutter bars) and is undoable. Do NOT save — let the user
+            // press Ctrl+S to accept or Ctrl+Z to reject.
+            const document = await vscode.workspace.openTextDocument(this.documentUri);
+            const fullRange = new vscode.Range(
+                document.positionAt(0),
+                document.positionAt(document.getText().length)
+            );
+            const edit = new vscode.WorkspaceEdit();
+            edit.replace(this.documentUri, fullRange, code);
+            await vscode.workspace.applyEdit(edit);
+
+            // Render from the in-memory code so the preview updates immediately.
+            return await this.renderScadContent(code);
         } catch (e: any) {
             return { success: false, error: e.message };
         }
@@ -151,8 +162,8 @@ export class PreviewPanel {
             const data = await runner.render(tmpFile, this._parameterOverrides);
 
             this._panel.webview.postMessage({
-                command: 'updateSTL',
-                data: bufferToArrayBuffer(data.stlBuffer),
+                command: 'updateModel',
+                data: bufferToArrayBuffer(data.modelBuffer),
                 parameters: data.parameters,
                 overrides: this._parameterOverrides
             } satisfies ExtensionToWebviewMessage);
@@ -176,8 +187,8 @@ export class PreviewPanel {
             const data = await runner.render(documentUri.fsPath, this._parameterOverrides);
             
             this._panel.webview.postMessage({
-                command: 'updateSTL',
-                data: bufferToArrayBuffer(data.stlBuffer),
+                command: 'updateModel',
+                data: bufferToArrayBuffer(data.modelBuffer),
                 parameters: data.parameters,
                 overrides: this._parameterOverrides
             } satisfies ExtensionToWebviewMessage);

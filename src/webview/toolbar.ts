@@ -5,6 +5,7 @@ export interface ToolbarCallbacks {
     onRenderModeChange: (mode: RenderMode) => void;
     onCameraProjectionChange: (projection: CameraProjection) => void;
     onShadowsChange: (enabled: boolean) => void;
+    onExport: () => void;
 }
 
 export class Toolbar {
@@ -20,9 +21,10 @@ export class Toolbar {
     constructor(
         onRenderModeChange: (mode: RenderMode) => void,
         onCameraProjectionChange: (projection: CameraProjection) => void,
-        onShadowsChange: (enabled: boolean) => void
+        onShadowsChange: (enabled: boolean) => void,
+        onExport: () => void
     ) {
-        const callbacks: ToolbarCallbacks = { onRenderModeChange, onCameraProjectionChange, onShadowsChange };
+        const callbacks: ToolbarCallbacks = { onRenderModeChange, onCameraProjectionChange, onShadowsChange, onExport };
 
         this.container = document.createElement('div');
         this.applyContainerStyle();
@@ -129,5 +131,13 @@ export class Toolbar {
             callbacks.onShadowsChange(this.shadowsEnabled);
         });
         this.container.appendChild(this.shadowsButton);
+
+        this.addSeparator();
+
+        // --- Export button ---
+        const exportBtn = this.createButton('⬇ Export 3MF');
+        exportBtn.title = 'Export 3MF with current parameter values';
+        exportBtn.addEventListener('click', () => callbacks.onExport());
+        this.container.appendChild(exportBtn);
     }
 }

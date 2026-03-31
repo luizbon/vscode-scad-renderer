@@ -13,7 +13,7 @@ export interface ScadParameter {
 
 // Messages sent from the extension host to the webview
 export type ExtensionToWebviewMessage =
-    | { command: 'updateSTL'; data: ArrayBuffer; parameters?: ScadParameter[]; overrides?: Record<string, ParameterValue> }
+    | { command: 'updateModel'; data: ArrayBuffer; parameters?: ScadParameter[]; overrides?: Record<string, ParameterValue> }
     | { command: 'capturePreview' }
     | { command: 'error'; message: string };
 
@@ -22,4 +22,5 @@ export type WebviewToExtensionMessage =
     | { command: 'previewCaptured'; data: string }
     | { command: 'parameterChanged'; name: string; value: ParameterValue }
     | { command: 'renderModeChanged'; mode: 'solid' | 'wireframe' | 'xray' }
-    | { command: 'cameraProjectionChanged'; projection: 'perspective' | 'orthographic' };
+    | { command: 'cameraProjectionChanged'; projection: 'perspective' | 'orthographic' }
+    | { command: 'export3mf' };

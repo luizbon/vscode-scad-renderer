@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
+import * as path from 'path';
 import { PreviewPanel } from './PreviewPanel';
 import which from 'which';
 import * as os from 'os';
@@ -137,6 +138,72 @@ export function activate(context: vscode.ExtensionContext) {
             const execPath = await checkScadInstallation();
             if (execPath) {
                 PreviewPanel.createOrShow(context.extensionUri, execPath, documentUri);
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('scad-renderer.export3mf', async (uri?: vscode.Uri) => {
+            const documentUri = uri ?? vscode.window.activeTextEditor?.document.uri;
+            if (!documentUri || !documentUri.fsPath.endsWith('.scad')) {
+                vscode.window.showErrorMessage('No active SCAD file to export.');
+                return;
+            }
+
+            const panel = PreviewPanel.panels.get(documentUri.toString());
+            const overrides = panel?.parameterOverrides;
+
+            const baseName = documentUri.fsPath.replace(/\.scad$/, '');
+            const defaultUri = vscode.Uri.file(baseName + '.3mf');
+
+            const saveUri = await vscode.window.showSaveDialog({
+                defaultUri,
+                filters: { '3MF Files': ['3mf'] },
+                title: 'Export 3MF'
+            });
+            if (!saveUri) { return; }
+
+            const execPath = await checkScadInstallation();
+            if (!execPath) { return; }
+
+            let exportError: string | undefined;
+
+            await vscode.window.withProgress(
+                { location: vscode.ProgressLocation.Notification, title: 'Exporting 3MF…', cancellable: false },
+                async () => {
+                    const runner = new ScadRunner(execPath);
+
+                    // If the document has unsaved edits (e.g. from AI), export from
+                    // a temp file so colours and code changes are reflected.
+                    const doc = vscode.workspace.textDocuments.find(
+                        d => d.uri.toString() === documentUri.toString()
+                    );
+                    let sourceScadPath = documentUri.fsPath;
+                    let tempPath: string | undefined;
+                    if (doc && doc.isDirty) {
+                        tempPath = path.join(os.tmpdir(), `scad-export-${Date.now()}.scad`);
+                        await fs.promises.writeFile(tempPath, doc.getText(), 'utf-8');
+                        sourceScadPath = tempPath;
+                    }
+
+                    try {
+                        await runner.exportTo3mf(sourceScadPath, saveUri.fsPath, overrides);
+                    } catch (e: any) {
+                        exportError = e.message;
+                    } finally {
+                        if (tempPath) { fs.unlink(tempPath, () => {}); }
+                    }
+                }
+            );
+
+            // Show result AFTER withProgress resolves so the spinner dismisses first
+            if (exportError) {
+                vscode.window.showErrorMessage(`Export failed: ${exportError}`);
+            } else {
+                const open = await vscode.window.showInformationMessage(
+                    `Exported to ${path.basename(saveUri.fsPath)}`, 'Show in Finder'
+                );
+                if (open) { vscode.commands.executeCommand('revealFileInOS', saveUri); }
             }
         })
     );
