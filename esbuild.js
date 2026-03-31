@@ -36,6 +36,9 @@ async function main() {
 		outfile: 'dist/extension.js',
 		external: ['vscode'],
 		logLevel: 'silent',
+		define: {
+			'process.env.TELEMETRY_CONNECTION_STRING': JSON.stringify(process.env.TELEMETRY_CONNECTION_STRING || ''),
+		},
 		plugins: [
 			/* add to the end of plugins array */
 			esbuildProblemMatcherPlugin,

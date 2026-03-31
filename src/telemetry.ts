@@ -1,35 +1,24 @@
 import * as vscode from 'vscode';
+import TelemetryReporter from '@vscode/extension-telemetry';
 
-let logger: vscode.TelemetryLogger | undefined;
+const CONNECTION_STRING: string = process.env.TELEMETRY_CONNECTION_STRING || '';
+
+let reporter: TelemetryReporter | undefined;
 
 export function initTelemetry(context: vscode.ExtensionContext): void {
-    const sender: vscode.TelemetrySender = {
-        sendEventData(_eventName: string, _data?: Record<string, unknown>) {
-            // VS Code handles routing through its own telemetry pipeline.
-            // Replace this body with your own backend (Application Insights, etc.) if needed.
-        },
-        sendErrorData(_error: Error, _data?: Record<string, unknown>) {
-            // Same as above.
-        }
-    };
-
-    logger = vscode.env.createTelemetryLogger(sender, {
-        ignoreBuiltInCommonProperties: false,
-        additionalCommonProperties: {
-            extensionVersion: context.extension.packageJSON.version as string
-        }
-    });
-
-    context.subscriptions.push(logger);
+    if (CONNECTION_STRING) {
+        reporter = new TelemetryReporter(CONNECTION_STRING);
+        context.subscriptions.push(reporter);
+    }
 }
 
 export function sendEvent(
     eventName: string,
-    properties?: Record<string, string | number | boolean>
+    properties?: Record<string, string>
 ): void {
-    logger?.logUsage(eventName, properties);
+    reporter?.sendTelemetryEvent(eventName, properties);
 }
 
 export function sendError(error: Error, properties?: Record<string, string>): void {
-    logger?.logError(error, properties);
+    reporter?.sendTelemetryErrorEvent(error.name, { ...properties, message: error.message });
 }
