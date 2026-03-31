@@ -127,21 +127,21 @@ export async function handleChatRequest(
     const systemPrompt = COMMAND_PROMPTS[command];
 
     if (!systemPrompt) {
-        // Generic help response when no slash command is used
-        response.markdown(`## 🖨️ SCAD AI Assistant
+        // No slash command — route free-form prompt directly to the orchestrator pipeline.
+        // The orchestrator skill will figure out what to do (create, debug, optimize, etc.).
+        if (!request.prompt.trim()) {
+            response.markdown(`## 🖨️ SCAD AI Assistant
 
-I'm your OpenSCAD 3D printing specialist. Here are the commands I support:
+I'm your OpenSCAD 3D printing specialist. Just tell me what you need, for example:
 
-| Command | Description |
-|---|---|
-| \`/optimize\` | Optimise your model for FDM printing (overhangs, wall thickness, nozzle-friendly geometry) |
-| \`/parametric\` | Refactor hard-coded values into customisable parameters |
-| \`/printability\` | Audit the script for printability issues (thin walls, overhangs, non-manifold geometry) |
-| \`/debug\` | Analyze rendering errors and troubleshoot issues with your script |
+- *"Create a parametric bracket with two mounting holes"*
+- *"Fix the rendering error in my file"*
+- *"Optimise this model for FDM printing"*
 
-Open a \`.scad\` file and use one of the commands above, or right-click a \`.scad\` file in the Explorer for quick access via the **SCAD AI Assistant** submenu.
-`);
-        return {};
+Or use a specific command: \`/create\`, \`/debug\`, \`/optimize\`, \`/parametric\`, \`/printability\`.`);
+            return {};
+        }
+        return handleCreateRequest(extensionUri, request, _context, response, token, request.toolInvocationToken, { skipDesigner: true });
     }
 
     // Obtain the SCAD code: first check if user pasted code in the prompt,

@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import { PreviewPanel } from './PreviewPanel';
 import { runAgent, loadSkill } from './agents/runner';
 import {
     parseReviewReport,
@@ -144,12 +145,18 @@ async function readFile(uri: vscode.Uri): Promise<string> {
 // /create flow
 // ─────────────────────────────────────────────────────────────────────────────
 
+export interface CreateRequestOptions {
+    /** When true, skip the designer interview and use the prompt directly as the design brief. */
+    skipDesigner?: boolean;
+}
+
 /**
- * Orchestrates the /create flow.
+ * Orchestrates the /create flow (and free-form prompts via skipDesigner).
  *
  * Phases:
- *  1. Designer LLM interviews the user (multi-turn).
+ *  1. Designer LLM interviews the user (multi-turn). Skipped when skipDesigner=true.
  *  2. When designer signals ACTION:GENERATE_CODE, the user picks a save location.
+ *     When skipDesigner=true and an existing SCAD file is open, that file is used instead.
  *  3. Coder writes initial SCAD code to the file.
  *  4. Orchestrator-driven loop: the orchestrator LLM (guided by its skill file) decides
  *     whether to call Reviewer, QA, Coder (for fixes), Debugger, or DONE.
@@ -160,81 +167,119 @@ export async function handleCreateRequest(
     context: vscode.ChatContext,
     response: vscode.ChatResponseStream,
     token: vscode.CancellationToken,
-    toolInvocationToken?: vscode.ChatParticipantToolToken
+    toolInvocationToken?: vscode.ChatParticipantToolToken,
+    options: CreateRequestOptions = {}
 ): Promise<vscode.ChatResult> {
     const history = context.history;
     const initialDescription = getInitialDescription(history, request.prompt);
 
-    if (!initialDescription) {
-        response.markdown(
-            `## 🎨 Create a 3D-Printable Object\n\n` +
-            `Describe what you'd like to make and I'll ask a few questions before generating the OpenSCAD code.\n\n` +
-            `*Example: "a wall hook for hanging my bicycle helmet"*`
-        );
-        return { metadata: { phase: 'create-start' } };
+    // ── Phase 1: Designer interview (skipped for free-form prompts) ───────────
+
+    let designBriefText: string | undefined;
+
+    if (options.skipDesigner) {
+        // Free-form prompt — treat the user's message as the design brief directly
+        designBriefText = request.prompt.trim();
+    } else {
+        if (!initialDescription) {
+            response.markdown(
+                `## 🎨 Create a 3D-Printable Object\n\n` +
+                `Describe what you'd like to make and I'll ask a few questions before generating the OpenSCAD code.\n\n` +
+                `*Example: "a wall hook for hanging my bicycle helmet"*`
+            );
+            return { metadata: { phase: 'create-start' } };
+        }
+
+        response.progress('💬 3D design specialist is thinking…');
+
+        const designerMessages = buildDesignerMessages(extensionUri, initialDescription, history, request.prompt);
+        const designerOutput = await runAgent(model(request), designerMessages, response, token);
+
+        const readyToGenerate = designerOutput.includes(ACTION_GENERATE);
+        designBriefText = extractDesignBrief(designerOutput) ?? extractBriefFromHistory(history);
+
+        if (!readyToGenerate || !designBriefText) {
+            // Still interviewing — runAgent already streamed the output
+            return { metadata: { phase: 'designing' } };
+        }
     }
 
-    // ── Phase 1: Designer interview ───────────────────────────────────────────
-
-    response.progress('💬 3D design specialist is thinking…');
-
-    const designerMessages = buildDesignerMessages(extensionUri, initialDescription, history, request.prompt);
-    const designerOutput = await runAgent(model(request), designerMessages, response, token);
-
-    const readyToGenerate = designerOutput.includes(ACTION_GENERATE);
-    const designBriefText = extractDesignBrief(designerOutput) ?? extractBriefFromHistory(history);
-
-    if (!readyToGenerate || !designBriefText) {
-        // Still interviewing — show the response (stripping internal tokens) and wait
-        // Note: runAgent already streamed the output; no extra work needed here.
-        return { metadata: { phase: 'designing' } };
+    if (!designBriefText) {
+        response.markdown('⚠️ Could not determine a design brief. Please describe what you want to create.');
+        return {};
     }
 
-    // ── Phase 2: Pick save location ───────────────────────────────────────────
+    // ── Phase 2: Resolve file to work on ─────────────────────────────────────
 
-    response.progress('🎨 Design brief ready. Choose where to save your model…');
+    // When free-form, prefer the currently open SCAD file over showing a save dialog
+    let uri: vscode.Uri | undefined;
+    let isExistingFile = false;
 
-    const words = designBriefText.toLowerCase().match(/\b(\w+)\b/g);
-    const suggestedName = words
-        ? `${words.filter(w => w.length > 4 && !['model', 'scad', 'design', 'which', 'their'].includes(w)).slice(0, 2).join('_')}.scad`
-        : 'my_model.scad';
-
-    const uri = await vscode.window.showSaveDialog({
-        defaultUri: vscode.workspace.workspaceFolders?.[0]
-            ? vscode.Uri.joinPath(vscode.workspace.workspaceFolders[0].uri, suggestedName)
-            : undefined,
-        filters: { 'OpenSCAD Files': ['scad'] },
-        title: '🚀 Create SCAD Project: Save your new file to begin'
-    });
+    if (options.skipDesigner) {
+        const editor = vscode.window.activeTextEditor;
+        if (editor && editor.document.uri.fsPath.endsWith('.scad')) {
+            uri = editor.document.uri;
+            isExistingFile = true;
+        } else {
+            // Check if there's an active preview panel
+            const panel = Array.from(PreviewPanel.panels.values())[0];
+            if (panel?.documentUri) {
+                uri = panel.documentUri;
+                isExistingFile = true;
+            }
+        }
+    }
 
     if (!uri) {
-        response.markdown('⚠️ You must save the file to proceed with code generation.');
-        return { metadata: { phase: 'design-cancelled' } };
+        response.progress('🎨 Design brief ready. Choose where to save your model…');
+
+        const words = designBriefText.toLowerCase().match(/\b(\w+)\b/g);
+        const suggestedName = words
+            ? `${words.filter(w => w.length > 4 && !['model', 'scad', 'design', 'which', 'their'].includes(w)).slice(0, 2).join('_')}.scad`
+            : 'my_model.scad';
+
+        uri = await vscode.window.showSaveDialog({
+            defaultUri: vscode.workspace.workspaceFolders?.[0]
+                ? vscode.Uri.joinPath(vscode.workspace.workspaceFolders[0].uri, suggestedName)
+                : undefined,
+            filters: { 'OpenSCAD Files': ['scad'] },
+            title: '🚀 Create SCAD Project: Save your new file to begin'
+        });
+
+        if (!uri) {
+            response.markdown('⚠️ You must save the file to proceed with code generation.');
+            return { metadata: { phase: 'design-cancelled' } };
+        }
+
+        await vscode.workspace.fs.writeFile(uri, Buffer.from(
+            `// Created by SCAD AI Designer\n// Brief: ${designBriefText.replace(/\n/g, ' ')}\n\n`, 'utf-8'
+        ));
+        const doc = await vscode.workspace.openTextDocument(uri);
+        await vscode.window.showTextDocument(doc, vscode.ViewColumn.One);
+        await vscode.commands.executeCommand('scad-renderer.preview', uri);
     }
 
-    await vscode.workspace.fs.writeFile(uri, Buffer.from(
-        `// Created by SCAD AI Designer\n// Brief: ${designBriefText.replace(/\n/g, ' ')}\n\n`, 'utf-8'
-    ));
-    const doc = await vscode.workspace.openTextDocument(uri);
-    await vscode.window.showTextDocument(doc, vscode.ViewColumn.One);
-    await vscode.commands.executeCommand('scad-renderer.preview', uri);
-
     // ── Phase 3: Initial code generation ─────────────────────────────────────
+    // Skipped when working with an existing file — the orchestrator will decide what to do.
 
-    response.progress('⚙️ Coder agent is building your 3D model…');
+    const agentReports: string[] = [];
 
-    const coderMessages = buildCoderMessages(extensionUri, designBriefText);
-    const initialCoderRaw = await runAgent(model(request), coderMessages, createSilentStream(), token, toolInvocationToken, '');
-    const initialCoderVisible = stripSentinelBlocks(initialCoderRaw);
-    if (initialCoderVisible) { response.markdown(initialCoderVisible + '\n\n'); }
+    if (!isExistingFile) {
+        response.progress('⚙️ Coder agent is building your 3D model…');
+
+        const coderMessages = buildCoderMessages(extensionUri, designBriefText);
+        const initialCoderRaw = await runAgent(model(request), coderMessages, createSilentStream(), token, toolInvocationToken, '');
+        const initialCoderVisible = stripSentinelBlocks(initialCoderRaw);
+        if (initialCoderVisible) { response.markdown(initialCoderVisible + '\n\n'); }
+
+        agentReports.push(`### Coder Turn (initial)\nCode written to disk. Design brief: ${designBriefText}`);
+    }
 
     // ── Phase 4: Orchestrator-driven quality loop ─────────────────────────────
 
-    const agentReports: string[] = [
-        `### Coder Turn (initial)\nCode written to disk. Design brief: ${designBriefText}`
-    ];
-
-    let trigger = 'Initial code generation completed. Post-code quality gate should begin.';
+    let trigger = isExistingFile
+        ? `User request on existing file: "${designBriefText}". Orchestrator should analyse and route to the appropriate agent.`
+        : 'Initial code generation completed. Post-code quality gate should begin.';
 
     await runOrchestratorLoop({
         model: model(request),
@@ -244,7 +289,7 @@ export async function handleCreateRequest(
             currentCode: await readFile(uri),
             agentReports,
             trigger,
-            changeLog: [{
+            changeLog: isExistingFile ? [] : [{
                 step: 0,
                 agent: 'CALL_CODER',
                 summary: 'Initial code generation from design brief',
