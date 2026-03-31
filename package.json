@@ -2,7 +2,7 @@
   "name": "vscode-scad-renderer",
   "displayName": "OpenSCAD Renderer",
   "description": "Live 3D Preview of OpenSCAD files using Three.js",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "publisher": "luizbon",
   "author": {
     "name": "Luiz Bon",
@@ -47,8 +47,13 @@
     "languages": [
       {
         "id": "scad",
-        "aliases": ["OpenSCAD", "scad"],
-        "extensions": [".scad"],
+        "aliases": [
+          "OpenSCAD",
+          "scad"
+        ],
+        "extensions": [
+          ".scad"
+        ],
         "icon": {
           "light": "./media/scad-file-icon.png",
           "dark": "./media/scad-file-icon.png"
