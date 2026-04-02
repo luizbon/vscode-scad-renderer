@@ -327,6 +327,7 @@
     "lint": "eslint src --ext .ts"
   },
   "devDependencies": {
+    "@types/adm-zip": "^0.5.8",
     "@types/chai": "^5.2.3",
     "@types/mocha": "^10.0.10",
     "@types/node": "20.x",
@@ -353,6 +354,7 @@
   },
   "dependencies": {
     "@vscode/extension-telemetry": "^1.5.1",
+    "adm-zip": "^0.5.16",
     "three": "^0.183.2",
     "which": "^4.0.0"
   }

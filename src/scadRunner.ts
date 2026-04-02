@@ -2,6 +2,7 @@ import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { exportMultiColorTo3mf } from './colorSplitter';
 
 export class ScadRunner {
     constructor(private executablePath: string) { }
@@ -106,26 +107,24 @@ export class ScadRunner {
         outputPath: string,
         overrides?: Record<string, string | number | boolean>
     ): Promise<void> {
+        // Try multi-colour export first (ColorSCAD technique: separate mesh per colour).
+        // Falls back to plain single-colour export if no color() calls are found.
+        try {
+            await exportMultiColorTo3mf(this.executablePath, inputScadPath, outputPath, overrides);
+            return;
+        } catch {
+            // No color() calls or CSG step failed — fall through to plain export
+        }
+
         const hasManifold = await this.supportsManifold();
-        // material-type=color → m:colorgroup extension (Materials & Properties spec),
-        // which slicers (PrusaSlicer, Bambu Studio, Cura) read for display colours.
-        // color-mode=model ensures per-face colour assignments are included (not just the default).
-        const args = [
-            '-o', outputPath,
-            '--export-format', '3mf',
-            '-O', 'export-3mf/material-type=color',
-            '-O', 'export-3mf/color-mode=model',
-        ];
-
+        const args = ['-o', outputPath, '--export-format', '3mf'];
         if (hasManifold) { args.push('--backend=manifold'); }
-
         if (overrides) {
             for (const [key, value] of Object.entries(overrides)) {
                 const argValue = typeof value === 'string' ? `"${value}"` : value.toString();
                 args.push('-D', `${key}=${argValue}`);
             }
         }
-
         args.push(inputScadPath);
 
         return new Promise((resolve, reject) => {
