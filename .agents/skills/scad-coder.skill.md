@@ -64,7 +64,8 @@ variable_name = default_value; // [min:step:max] units
 **You MUST complete this loop before finishing. You cannot submit your work until both gates pass.**
 
 ### Gate 1 — Render Check (non-negotiable)
-After every write, call `scad_renderer_update_code` and inspect the returned logs:
+Before writing new code, call `scad_renderer_read_file` to read the current file contents so you don't overwrite unrelated sections unintentionally. If no file or panel exists yet, skip the read and go straight to `scad_renderer_write_file` to create it.
+After every write, call `scad_renderer_update_code` (or check the result of `scad_renderer_write_file`) and inspect the returned logs:
 - If logs contain `ERROR:` → fix the error and re-render. Do not proceed.
 - If the render succeeds but geometry is empty → fix the boolean logic and re-render.
 - Never write more than 30 lines without a render check.
@@ -86,7 +87,10 @@ If any of the three questions above fails:
 Only when both gates pass may you finish.
 
 ### Tool List
-- `scad_renderer_update_code` — saves code to the file, re-renders, returns compilation logs
+- `scad_renderer_get_workspace_info` — returns workspace root and active file paths; use to resolve bare filenames
+- `scad_renderer_read_image` — reads a reference image from the workspace; call this if the design brief references an image file (e.g. "model.jpg") so you can see the shape and proportions
+- `scad_renderer_write_file` — **creates a new file** at the given path (workspace-relative or absolute), writes the code, opens the editor tab, and launches the preview panel. Use this when writing a brand-new model from scratch (no preview panel open yet). Call before the verification loop.
+- `scad_renderer_update_code` — saves code to the **already-open** file, re-renders, returns compilation logs. Use for subsequent edits after the file exists.
 - `scad_renderer_capture_preview` — returns a preview image for quick visual inspection
 
 ---

@@ -82,9 +82,7 @@ export async function runAgent(
                     const result = await vscode.lm.invokeTool(call.name, { input: call.input, toolInvocationToken }, token);
                     workingMessages.push(vscode.LanguageModelChatMessage.Assistant([call]));
                     workingMessages.push(vscode.LanguageModelChatMessage.User([
-                        new vscode.LanguageModelToolResultPart(call.callId, [
-                            new vscode.LanguageModelTextPart(JSON.stringify(result.content))
-                        ])
+                        new vscode.LanguageModelToolResultPart(call.callId, result.content as any[])
                     ]));
                 } catch (err: any) {
                     workingMessages.push(vscode.LanguageModelChatMessage.Assistant([call]));

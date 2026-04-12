@@ -254,6 +254,15 @@
     },
     "languageModelTools": [
       {
+        "name": "scad_renderer_get_workspace_info",
+        "displayName": "Get Workspace Info",
+        "modelDescription": "Returns the workspace folder paths, the active editor file path, and the preview panel file path. Call this first whenever you need to resolve a relative filename or bare filename (e.g. 'model.jpg') to an absolute path before reading a file or image.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
         "name": "scad_renderer_render",
         "displayName": "Render SCAD model",
         "modelDescription": "Trigger a refresh of the 3D preview for the active OpenSCAD file. Use this after modifying the code to see changes.",
@@ -289,6 +298,37 @@
         }
       },
       {
+        "name": "scad_renderer_read_file",
+        "displayName": "Read SCAD File",
+        "modelDescription": "Reads and returns the source code of a SCAD file in the workspace. If no path is provided, reads the currently active SCAD file from the preview panel.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The absolute path to a .scad file within the workspace. Omit to read the currently active file."
+            }
+          }
+        }
+      },
+      {
+        "name": "scad_renderer_read_image",
+        "displayName": "Read Image File",
+        "modelDescription": "Reads an image file (png, jpg, jpeg, gif, webp, bmp) from the workspace and returns it so you can visually inspect it. Accepts absolute paths, workspace-relative paths, or bare filenames (e.g. 'model.jpg'). If unsure of the path, call scad_renderer_get_workspace_info first to discover the workspace root, then pass the resolved path here.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The absolute path to the image file within the workspace."
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      {
         "name": "scad_renderer_open_file",
         "displayName": "Open SCAD File",
         "modelDescription": "Opens a SCAD file in the editor. Use this to ensure the user can see the file you are working on.",
@@ -302,6 +342,28 @@
           },
           "required": [
             "path"
+          ]
+        }
+      },
+      {
+        "name": "scad_renderer_write_file",
+        "displayName": "Write SCAD File",
+        "modelDescription": "Creates or overwrites a .scad file with the given code, then opens it in the editor and launches the 3D preview panel. Use this when no preview panel exists yet — for example when writing a brand-new model from scratch. The path may be absolute or workspace-relative; parent directories are created automatically. After calling this tool the preview panel is active and you can call scad_renderer_update_code for further iterations or scad_renderer_capture_preview to inspect the result.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute path or workspace-relative path to the .scad file to create or overwrite (e.g. 'halfling_rogue.scad' or 'C:/Users/kts/Documents/MySpace/RandomCad/DnDTest/halfling_rogue.scad')."
+            },
+            "code": {
+              "type": "string",
+              "description": "The complete OpenSCAD source code to write to the file."
+            }
+          },
+          "required": [
+            "path",
+            "code"
           ]
         }
       }

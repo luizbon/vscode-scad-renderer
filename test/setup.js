@@ -23,6 +23,23 @@ class LanguageModelToolCallPart {
     }
 }
 
+class LanguageModelImagePart {
+    constructor(data, mimeType) {
+        this.data = data;
+        this.mimeType = mimeType;
+    }
+}
+
+class LanguageModelDataPart {
+    static image(data, mimeType) {
+        return new LanguageModelDataPart(data, mimeType);
+    }
+    constructor(data, mimeType) {
+        this.data = data;
+        this.mimeType = mimeType;
+    }
+}
+
 class LanguageModelToolResultPart {
     constructor(callId, content) {
         this.callId = callId;
@@ -39,14 +56,56 @@ class LanguageModelChatMessage {
     }
 }
 
+class LanguageModelToolResult {
+    constructor(content) { this.content = content; }
+}
+
 const vscodeMockExports = {
     LanguageModelTextPart,
+    LanguageModelImagePart,
+    LanguageModelDataPart,
     LanguageModelToolCallPart,
     LanguageModelToolResultPart,
     LanguageModelChatMessage,
+    LanguageModelToolResult,
+    Uri: {
+        file: (p) => ({ fsPath: p, scheme: 'file', toString: () => 'file://' + p }),
+        joinPath: (base, ...segs) => {
+            const nodePath = require('path');
+            const joined = nodePath.join(base.fsPath, ...segs);
+            return { fsPath: joined, scheme: 'file', toString: () => 'file://' + joined };
+        },
+    },
+    ViewColumn: { One: 1, Two: 2, Three: 3 },
+    workspace: {
+        workspaceFolders: null,
+        fs: {
+            createDirectory: async () => {},
+            writeFile: async () => {},
+            readFile: async () => Buffer.alloc(0),
+        },
+        openTextDocument: async (uri) => ({ uri, getText: () => '' }),
+        activeTextEditor: undefined,
+    },
+    window: {
+        activeTextEditor: undefined,
+        showTextDocument: async () => {},
+        createOutputChannel: (_name) => ({
+            appendLine: () => {},
+            append: () => {},
+            show: () => {},
+            hide: () => {},
+            clear: () => {},
+            dispose: () => {},
+        }),
+    },
+    commands: {
+        executeCommand: async () => {},
+    },
     lm: {
         tools: [],
         invokeTool: async (_name, _opts, _token) => ({ content: [] }),
+        registerTool: (_name, _handler) => ({ dispose: () => {} }),
     },
 };
 
