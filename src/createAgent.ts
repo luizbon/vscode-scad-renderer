@@ -193,7 +193,7 @@ export async function handleCreateRequest(
         response.progress('💬 3D design specialist is thinking…');
 
         const designerMessages = buildDesignerMessages(extensionUri, initialDescription, history, request.prompt);
-        const designerOutput = await runAgent(model(request), designerMessages, response, token);
+        const designerOutput = await runAgent(model(request), designerMessages, response, token, request.toolInvocationToken);
 
         const readyToGenerate = designerOutput.includes(ACTION_GENERATE);
         designBriefText = extractDesignBrief(designerOutput) ?? extractBriefFromHistory(history);
@@ -230,7 +230,8 @@ export async function handleCreateRequest(
         }
     }
 
-    if (!uri) {
+    if (!uri && !options.skipDesigner) {
+        // /create flow: the designer interview is done, ask user where to save.
         response.progress('🎨 Design brief ready. Choose where to save your model…');
 
         const words = designBriefText.toLowerCase().match(/\b(\w+)\b/g);
@@ -258,6 +259,8 @@ export async function handleCreateRequest(
         await vscode.window.showTextDocument(doc, vscode.ViewColumn.One);
         await vscode.commands.executeCommand('scad-renderer.preview', uri);
     }
+    // For free-form prompts (skipDesigner=true) with no existing file, uri is still
+    // undefined here. The coder will create the file via scad_renderer_write_file.
 
     // ── Phase 3: Initial code generation ─────────────────────────────────────
     // Skipped when working with an existing file — the orchestrator will decide what to do.
@@ -268,9 +271,34 @@ export async function handleCreateRequest(
         response.progress('⚙️ Coder agent is building your 3D model…');
 
         const coderMessages = buildCoderMessages(extensionUri, designBriefText);
+
+        if (!uri) {
+            // No file was pre-created — explicitly tell the coder to create it
+            // via scad_renderer_write_file before doing anything else.
+            coderMessages.push(vscode.LanguageModelChatMessage.User(
+                'CRITICAL: No SCAD file is open yet. ' +
+                'Your FIRST action MUST be to call `scad_renderer_write_file` to create and open the file. ' +
+                'Choose a filename that describes the object (e.g. wall_hook.scad, bracket.scad). ' +
+                'Do NOT output instructions for the user to create the file manually — you have the tool, use it. ' +
+                'After `scad_renderer_write_file` succeeds, use `scad_renderer_update_code` for any further edits.'
+            ));
+        }
+
         const initialCoderRaw = await runAgent(model(request), coderMessages, createSilentStream(), token, toolInvocationToken, '');
         const initialCoderVisible = stripSentinelBlocks(initialCoderRaw);
         if (initialCoderVisible) { response.markdown(initialCoderVisible + '\n\n'); }
+
+        // If no file was pre-created, detect what the coder wrote via the panel
+        if (!uri) {
+            uri = PreviewPanel.currentPanel?.documentUri;
+            if (!uri) {
+                response.markdown(
+                    '⚠️ The coder did not create a file. ' +
+                    'Please open or create a `.scad` file and try again, or tell me the specific file path you want to use.'
+                );
+                return { metadata: { phase: 'coder-failed' } };
+            }
+        }
 
         agentReports.push(`### Coder Turn (initial)\nCode written to disk. Design brief: ${designBriefText}`);
     }

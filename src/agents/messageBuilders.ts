@@ -19,13 +19,21 @@ export function buildOrchestratorMessages(
     ctx: OrchestratorContext
 ): vscode.LanguageModelChatMessage[] {
     const skill = loadSkill(extensionUri, 'scad-orchestrator');
+
+    // Keep only the most recent reports and cap each to avoid context bloat.
+    const MAX_REPORTS = 6;
+    const MAX_REPORT_CHARS = 600;
+    const trimmedReports = ctx.agentReports
+        .slice(-MAX_REPORTS)
+        .map(r => r.length > MAX_REPORT_CHARS ? r.substring(0, MAX_REPORT_CHARS) + '\n…(truncated)' : r);
+
     const contextBlock = [
         `**File:** ${ctx.fileDescription}`,
         `**Design Brief / Goal:**\n${ctx.designBrief}`,
         `**Change History (Session Memory):**\n${formatChangeLog(ctx.changeLog)}`,
         ctx.currentCode ? `**Current SCAD Code:**\n\`\`\`openscad\n${ctx.currentCode}\n\`\`\`` : '',
-        ctx.agentReports.length > 0
-            ? `**Subagent Reports This Session:**\n\n${ctx.agentReports.join('\n\n---\n\n')}`
+        trimmedReports.length > 0
+            ? `**Subagent Reports This Session:**\n\n${trimmedReports.join('\n\n---\n\n')}`
             : '',
         `**Trigger:** ${ctx.trigger}`,
     ].filter(Boolean).join('\n\n');
